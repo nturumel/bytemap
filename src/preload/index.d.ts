@@ -30,6 +30,7 @@ export interface PreloadApi {
   }
   disk: {
     breakdown: (path: string | null) => Promise<void>
+    cancelBreakdown: () => Promise<void>
     onChild: (cb: (node: DiskNode) => void) => () => void
   }
 }

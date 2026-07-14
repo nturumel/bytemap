@@ -56,12 +56,13 @@ export function ResultsScreen({
       const meta = SCAN_CATEGORIES.find((c) => c.id === catId)!
       const catItems = items.filter((i) => i.category === catId)
       if (catItems.length === 0) continue
+      const selectable = catItems.filter((i) => i.deletable !== false)
       result.push({
         type: 'header',
         category: catId,
         label: meta.label,
         count: catItems.length,
-        allChecked: catItems.every((i) => selected.has(i.id))
+        allChecked: selectable.length > 0 && selectable.every((i) => selected.has(i.id))
       })
       for (const item of catItems) result.push({ type: 'item', item })
     }

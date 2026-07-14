@@ -51,6 +51,7 @@ const api = {
   },
   disk: {
     breakdown: (path: string | null): Promise<void> => ipcRenderer.invoke('disk:breakdown', path),
+    cancelBreakdown: (): Promise<void> => ipcRenderer.invoke('disk:cancelBreakdown'),
     onChild: (cb: (node: DiskNode) => void): (() => void) => {
       const listener = (_: unknown, node: DiskNode): void => cb(node)
       ipcRenderer.on('disk:breakdown-child', listener)

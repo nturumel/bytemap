@@ -16,6 +16,8 @@ export interface PrivilegedHelperState {
   status: PrivilegedHelperStatus
   /** Whether BytemapHelperCtl is present (packaged app / built helper). */
   ctlAvailable: boolean
+  /** SMAppService.register only works from a signed packaged Bytemap.app. */
+  canRegister: boolean
 }
 
 export interface ScanItem {
@@ -30,6 +32,11 @@ export interface ScanItem {
   lastUsed?: string
   /** How "delete" is actually carried out. Defaults to moving `path` to Trash. */
   action?: ScanItemAction
+  /**
+   * When false, the item is informational only (e.g. SIP-sealed Simulator runtimes).
+   * Defaults to true.
+   */
+  deletable?: boolean
 }
 
 export interface ScanCategoryMeta {

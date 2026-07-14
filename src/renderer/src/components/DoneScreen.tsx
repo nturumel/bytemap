@@ -35,13 +35,17 @@ export function DoneScreen({
             <WarningIcon width={14} height={14} />
             {failures.length} item{failures.length === 1 ? '' : 's'} couldn&apos;t be deleted
           </div>
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">
             {failures.map((f) => (
-              <li
-                key={f.id}
-                className="truncate font-mono text-xs text-neutral-500 dark:text-neutral-400"
-              >
-                {f.path} — {f.error}
+              <li key={f.id} className="text-left text-xs text-neutral-500 dark:text-neutral-400">
+                <div className="truncate font-mono" title={f.path}>
+                  {f.path}
+                </div>
+                {f.error && (
+                  <div className="mt-0.5 text-[11px] leading-snug text-amber-700 dark:text-amber-400">
+                    {f.error}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

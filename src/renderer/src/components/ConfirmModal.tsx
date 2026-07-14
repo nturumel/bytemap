@@ -41,7 +41,7 @@ export function ConfirmModal({
   const removeCount = items.filter((i) => actionKind(i) === 'remove').length
   const dockerCount = items.filter((i) => actionKind(i) === 'dockerPrune').length
   const helperReady = helperState?.status === 'enabled'
-  const helperAvailable = helperState?.ctlAvailable === true
+  const helperAvailable = helperState?.canRegister === true
 
   const parts: string[] = []
   if (trashCount > 0) {

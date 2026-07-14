@@ -142,23 +142,27 @@ export async function scanLargeFiles(
   for (const f of files) {
     const isImage = IMAGE_EXTENSIONS.has(extname(f.path).toLowerCase())
     if (f.size < (isImage ? IMAGE_THRESHOLD : THRESHOLD)) continue
+    const sealed = isSealedSimulatorRuntime(f.path)
     emit({
       id: `largeFiles:${f.path}`,
       path: f.path,
       name: basename(f.path),
       sizeBytes: f.size,
-      reason: isSealedSimulatorRuntime(f.path)
-        ? `${formatBytes(f.size)} Xcode Simulator runtime — protected by macOS, remove via Xcode > Settings > Platforms`
+      reason: sealed
+        ? `${formatBytes(f.size)} — Xcode Simulator runtime sealed by macOS. Remove in Xcode → Settings → Platforms (needs full Xcode, not just CLT)`
         : `${formatBytes(f.size)} ${isImage ? 'image' : 'file'}`,
-      category: 'largeFiles'
+      category: 'largeFiles',
+      deletable: sealed ? false : undefined
     })
   }
 }
 
-// These .dmg runtime images are SIP-sealed — not even root can move/delete them directly.
-// Only Xcode's own tooling (Platforms settings, `xcrun simctl runtime delete`) can, since
-// it carries the entitlement SIP checks for. Flagging this up front avoids promising a
-// deletion this app (or any app) can't actually perform.
+// These runtime images are SIP-sealed — not even root can move/delete them directly.
+// Only Xcode's own tooling (Platforms settings, `xcrun simctl runtime delete`) can.
 function isSealedSimulatorRuntime(path: string): boolean {
-  return path.includes('/CoreSimulator/Images/') && extname(path).toLowerCase() === '.dmg'
+  const lower = path.toLowerCase()
+  if (path.includes('/CoreSimulator/Images/') && lower.endsWith('.dmg')) return true
+  if (path.includes('/CoreSimulator/Cryptex/')) return true
+  if (path.includes('/CoreSimulator/Images/SimRuntimeBundle-')) return true
+  return false
 }

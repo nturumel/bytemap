@@ -65,7 +65,7 @@ export function useScan(): UseScanState {
       setCategoriesDone((prev) => new Set(prev).add(category))
     })
     window.api.helper.status().then(setHelperState).catch(() => {
-      setHelperState({ status: 'unavailable', ctlAvailable: false })
+      setHelperState({ status: 'unavailable', ctlAvailable: false, canRegister: false })
     })
     return () => {
       offProgress()
@@ -123,7 +123,9 @@ export function useScan(): UseScanState {
   }, [])
 
   const toggleCategory = useCallback((category: ScanCategoryId, checked: boolean) => {
-    const ids = itemsRef.current.filter((i) => i.category === category).map((i) => i.id)
+    const ids = itemsRef.current
+      .filter((i) => i.category === category && i.deletable !== false)
+      .map((i) => i.id)
     setSelected((prev) => {
       const next = new Set(prev)
       for (const id of ids) {
@@ -138,7 +140,9 @@ export function useScan(): UseScanState {
     setPhase('deleting')
     setHelperError(null)
     setFreedBytes(0)
-    const toDelete = itemsRef.current.filter((i) => selected.has(i.id))
+    const toDelete = itemsRef.current.filter(
+      (i) => selected.has(i.id) && i.deletable !== false
+    )
     setHadIrreversibleActions(toDelete.some(isIrreversible))
     const results = await window.api.deleteItems({
       items: toDelete.map((i) => ({ id: i.id, path: i.path, action: i.action }))

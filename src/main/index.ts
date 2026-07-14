@@ -76,6 +76,12 @@ function createWindow(): void {
     })
   })
 
+  // Cache-hit navigations (e.g. breadcrumb back) never call breakdown, so bump the request
+  // id explicitly — otherwise an in-flight scan keeps streaming into the restored view.
+  ipcMain.handle('disk:cancelBreakdown', () => {
+    latestBreakdownRequest++
+  })
+
   ipcMain.handle('system:fullDiskAccess', () => refreshFullDiskAccess())
 
   ipcMain.handle('system:openFullDiskAccessSettings', () => {

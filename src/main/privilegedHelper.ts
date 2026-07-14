@@ -55,15 +55,20 @@ function parseStatus(raw: string): PrivilegedHelperStatus {
 }
 
 export async function helperStatus(): Promise<PrivilegedHelperState> {
+  const canRegister = app.isPackaged
   const ctl = ctlPath()
   if (!ctl) {
-    return { status: 'unavailable', ctlAvailable: false }
+    return { status: 'unavailable', ctlAvailable: false, canRegister }
+  }
+  // Outside a signed .app, SMAppService cannot load the helper plist — don't advertise install.
+  if (!canRegister) {
+    return { status: 'unavailable', ctlAvailable: true, canRegister: false }
   }
   const { stdout, code } = await runCtl(['status'])
   if (code !== 0) {
-    return { status: 'unavailable', ctlAvailable: true }
+    return { status: 'unavailable', ctlAvailable: true, canRegister }
   }
-  return { status: parseStatus(stdout), ctlAvailable: true }
+  return { status: parseStatus(stdout), ctlAvailable: true, canRegister }
 }
 
 export async function isHelperReady(): Promise<boolean> {
@@ -73,13 +78,23 @@ export async function isHelperReady(): Promise<boolean> {
 
 /** Triggers the one-time SMAppService registration (system auth dialog). */
 export async function registerHelper(): Promise<PrivilegedHelperState> {
+  if (!app.isPackaged) {
+    throw new Error(
+      'The protected-file helper can only be installed from a signed Bytemap.app. In development, protected deletes use a one-time admin password prompt instead.'
+    )
+  }
   const { stdout, stderr, code } = await runCtl(['register'])
   if (code !== 0) {
-    throw new Error(stderr || stdout || 'Failed to register privileged helper')
+    const detail = stderr || stdout || 'Failed to register privileged helper'
+    if (/codesign|signing|-67028/i.test(detail)) {
+      throw new Error(
+        'Helper install needs a properly signed Bytemap.app (Developer ID). Codesigning failed loading the helper plist.'
+      )
+    }
+    throw new Error(detail)
   }
-  // register prints the new status on success
   if (stdout) {
-    return { status: parseStatus(stdout), ctlAvailable: true }
+    return { status: parseStatus(stdout), ctlAvailable: true, canRegister: true }
   }
   return helperStatus()
 }
