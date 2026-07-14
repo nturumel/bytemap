@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
+import { existsSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { runScan } from './scanners'
@@ -7,6 +8,11 @@ import { performDeletions, performHelperDeletions } from './actions'
 import { helperStatus, registerHelper } from './privilegedHelper'
 import { refreshFullDiskAccess } from './scanners/usageDb'
 import { dirBreakdownStream } from './native'
+import {
+  auxiliariesOutsideRoot,
+  defaultCleanupWatchRoots,
+  diskWatchService
+} from './diskWatch'
 import type { DeleteRequest } from '@shared/types'
 
 const FULL_DISK_ACCESS_SETTINGS_URL =
@@ -67,19 +73,62 @@ function createWindow(): void {
   // late-arriving nodes from the superseded request must not leak into the new view — the
   // Rust side has no cancellation, so filter by "is this still the latest request" here.
   let latestBreakdownRequest = 0
+
+  diskWatchService.refreshQuietPrefixes()
+  diskWatchService.setListener((payload) => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('disk:changed', payload)
+    }
+  })
+
   ipcMain.handle('disk:breakdown', async (_event, path: string | null) => {
     const requestId = ++latestBreakdownRequest
     const target = path ?? app.getPath('home')
-    await dirBreakdownStream(target, 1, (node) => {
-      if (requestId !== latestBreakdownRequest) return
-      mainWindow.webContents.send('disk:breakdown-child', node)
-    })
+    diskWatchService.beginBreakdown(target)
+    try {
+      await dirBreakdownStream(target, 1, (node) => {
+        if (requestId !== latestBreakdownRequest) return
+        mainWindow.webContents.send('disk:breakdown-child', node)
+      })
+    } finally {
+      // Always pair beginBreakdown (including superseded requests) so the global gate closes.
+      diskWatchService.endBreakdown(target)
+    }
   })
 
   // Cache-hit navigations (e.g. breadcrumb back) never call breakdown, so bump the request
   // id explicitly — otherwise an in-flight scan keeps streaming into the restored view.
+  // Do not endBreakdown here: the in-flight handler's `finally` pairs begin/end exactly once.
   ipcMain.handle('disk:cancelBreakdown', () => {
     latestBreakdownRequest++
+  })
+
+  ipcMain.handle('disk:watch', (_event, path: string | null) => {
+    const visualRoot = path ?? app.getPath('home')
+    // Watch the current visualized root plus high-signal cleanup roots that are
+    // *not* already covered by a recursive watch on visualRoot (avoids duplicate
+    // FSEvents under home → Library/Caches while viewing home).
+    const auxiliaries = auxiliariesOutsideRoot(
+      visualRoot,
+      defaultCleanupWatchRoots().filter((p) => existsSync(p))
+    )
+    diskWatchService.setWatchedRoots([visualRoot, ...auxiliaries])
+  })
+
+  ipcMain.handle('disk:unwatch', () => {
+    diskWatchService.stopAll()
+  })
+
+  ipcMain.handle('disk:expectChanges', (_event, paths: string[]) => {
+    diskWatchService.expectChanges(paths)
+  })
+
+  ipcMain.handle('shell:showItemInFolder', (_event, targetPath: string) => {
+    shell.showItemInFolder(targetPath)
+  })
+
+  ipcMain.handle('shell:openPath', async (_event, targetPath: string) => {
+    return shell.openPath(targetPath)
   })
 
   ipcMain.handle('system:fullDiskAccess', () => refreshFullDiskAccess())
@@ -143,6 +192,7 @@ app.whenReady().then(() => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
+  diskWatchService.stopAll()
   if (process.platform !== 'darwin') {
     app.quit()
   }

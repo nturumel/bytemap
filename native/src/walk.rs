@@ -1,6 +1,24 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
+
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+
+/// Disk usage for a file in bytes — prefer allocated blocks (matches `du`) over logical
+/// length so APFS sparse files / cloud placeholders / some Container clones aren't
+/// inflated. Hard-linked clones are de-duplicated via (dev, ino) in `sum_dir`.
+fn file_disk_bytes(metadata: &fs::Metadata) -> u64 {
+  #[cfg(unix)]
+  {
+    let allocated = metadata.blocks().saturating_mul(512);
+    if allocated > 0 {
+      return allocated;
+    }
+  }
+  metadata.len()
+}
 
 /// Mirrors the TypeScript scanners' exclude list — directories that are either
 /// regenerable, root/system-owned, or risky to walk into file-by-file.
@@ -133,7 +151,11 @@ fn walk_dir<F: FnMut(WalkedFile)>(
           .map(|d| d.as_millis() as i64)
           .unwrap_or(0);
         *count += 1;
-        on_file(WalkedFile { path: entry.path(), size: metadata.len(), mtime_ms });
+        on_file(WalkedFile {
+          path: entry.path(),
+          size: file_disk_bytes(&metadata),
+          mtime_ms,
+        });
       }
     }
   }
@@ -182,15 +204,16 @@ pub fn list_children(dir: &Path) -> Vec<ChildEntry> {
   result
 }
 
-/// Recursive size sum with no exclusions applied (matches plain `du -sk` semantics) — used
-/// for sizing a specific target (app bundle, cache folder, opaque library) as a whole.
+/// Recursive size sum with no exclusions (aligned with `du -sk`: allocated blocks, hard
+/// links counted once). Used for sizing a target (bundle, cache, opaque library) as a whole.
 pub fn dir_size(path: &Path) -> u64 {
   let mut total = 0u64;
-  sum_dir(path, &mut total);
+  let mut seen: HashSet<(u64, u64)> = HashSet::new();
+  sum_dir(path, &mut total, &mut seen);
   total
 }
 
-fn sum_dir(dir: &Path, total: &mut u64) {
+fn sum_dir(dir: &Path, total: &mut u64, seen: &mut HashSet<(u64, u64)>) {
   let entries = match fs::read_dir(dir) {
     Ok(e) => e,
     Err(_) => return,
@@ -204,9 +227,16 @@ fn sum_dir(dir: &Path, total: &mut u64) {
       continue;
     }
     if file_type.is_dir() {
-      sum_dir(&entry.path(), total);
+      sum_dir(&entry.path(), total, seen);
     } else if let Ok(metadata) = entry.metadata() {
-      *total += metadata.len();
+      #[cfg(unix)]
+      {
+        let key = (metadata.dev(), metadata.ino());
+        if !seen.insert(key) {
+          continue;
+        }
+      }
+      *total += file_disk_bytes(&metadata);
     }
   }
 }

@@ -64,12 +64,12 @@ export const SCAN_CATEGORIES: ScanCategoryMeta[] = [
   {
     id: 'caches',
     label: 'Caches & logs',
-    description: 'Regenerable cache/log folders (dev tool caches, app logs)'
+    description: 'Regenerable caches, logs, Xcode data, and leftover app folders'
   },
   {
     id: 'oldDownloads',
     label: 'Old downloads',
-    description: 'Files in ~/Downloads untouched for 60+ days'
+    description: 'Files in ~/Downloads untouched for 60+ days (large/installers prioritized)'
   }
 ]
 
@@ -104,4 +104,13 @@ export interface DiskNode {
   size: number
   isDir: boolean
   children?: DiskNode[]
+}
+
+/** Coalesced filesystem change from the disk watcher (main → renderer). */
+export interface DiskChangeEvent {
+  root: string
+  paths: string[]
+  childNames: string[]
+  generation: number
+  selfTriggered: boolean
 }

@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type {
   DeleteRequest,
   DeleteResult,
+  DiskChangeEvent,
   DiskNode,
   PrivilegedHelperState,
   ScanCategoryId,
@@ -56,7 +57,21 @@ const api = {
       const listener = (_: unknown, node: DiskNode): void => cb(node)
       ipcRenderer.on('disk:breakdown-child', listener)
       return () => ipcRenderer.removeListener('disk:breakdown-child', listener)
+    },
+    watch: (path: string | null): Promise<void> => ipcRenderer.invoke('disk:watch', path),
+    unwatch: (): Promise<void> => ipcRenderer.invoke('disk:unwatch'),
+    expectChanges: (paths: string[]): Promise<void> =>
+      ipcRenderer.invoke('disk:expectChanges', paths),
+    onChanged: (cb: (event: DiskChangeEvent) => void): (() => void) => {
+      const listener = (_: unknown, event: DiskChangeEvent): void => cb(event)
+      ipcRenderer.on('disk:changed', listener)
+      return () => ipcRenderer.removeListener('disk:changed', listener)
     }
+  },
+  shell: {
+    showItemInFolder: (path: string): Promise<void> =>
+      ipcRenderer.invoke('shell:showItemInFolder', path),
+    openPath: (path: string): Promise<string> => ipcRenderer.invoke('shell:openPath', path)
   }
 }
 

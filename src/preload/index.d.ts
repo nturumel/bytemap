@@ -2,6 +2,7 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
   DeleteRequest,
   DeleteResult,
+  DiskChangeEvent,
   DiskNode,
   PrivilegedHelperState,
   ScanCategoryId,
@@ -32,6 +33,14 @@ export interface PreloadApi {
     breakdown: (path: string | null) => Promise<void>
     cancelBreakdown: () => Promise<void>
     onChild: (cb: (node: DiskNode) => void) => () => void
+    watch: (path: string | null) => Promise<void>
+    unwatch: () => Promise<void>
+    expectChanges: (paths: string[]) => Promise<void>
+    onChanged: (cb: (event: DiskChangeEvent) => void) => () => void
+  }
+  shell: {
+    showItemInFolder: (path: string) => Promise<void>
+    openPath: (path: string) => Promise<string>
   }
 }
 

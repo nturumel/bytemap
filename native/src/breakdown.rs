@@ -27,10 +27,18 @@ pub fn build_tree(path: &Path, name: String, depth: u32, max_depth: u32) -> DirN
   };
 
   if !metadata.is_dir() {
+    #[cfg(unix)]
+    let size = {
+      use std::os::unix::fs::MetadataExt;
+      let allocated = metadata.blocks().saturating_mul(512);
+      if allocated > 0 { allocated } else { metadata.len() }
+    };
+    #[cfg(not(unix))]
+    let size = metadata.len();
     return DirNode {
       name,
       path: path.to_string_lossy().to_string(),
-      size: metadata.len() as f64,
+      size: size as f64,
       is_dir: false,
       children: None,
     };
