@@ -1,0 +1,63 @@
+appId: com.niharturumella.bytemap
+productName: Bytemap
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!build-assets'
+  # native/ ships only the compiled addon + its JS glue — the Rust source and Cargo build
+  # artifacts aren't needed at runtime and target/ alone can be gigabytes.
+  - '!native/src'
+  - '!native/target'
+  - '!native/Cargo.toml'
+  - '!native/Cargo.lock'
+  - '!native/build.rs'
+  - '!helper/**'
+asarUnpack:
+  - resources/**
+  # Native addons can't be dlopen'd from inside an asar archive — must be real files on
+  # disk. Electron transparently redirects reads for asar-relative paths that were
+  # unpacked, so src/main/native.ts's `require('../../native')` still resolves correctly.
+  - native/**
+win:
+  executableName: Bytemap
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+mac:
+  icon: build/icon.icns
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    - NSDocumentsFolderUsageDescription: Bytemap needs access to your Documents folder to measure space there.
+    - NSDownloadsFolderUsageDescription: Bytemap needs access to your Downloads folder to find old downloads.
+  notarize: false
+  extraFiles:
+    - from: helper/.build/release/BytemapHelper
+      to: MacOS/BytemapHelper
+    - from: helper/.build/release/BytemapHelperCtl
+      to: MacOS/BytemapHelperCtl
+    - from: helper/Resources/com.niharturumella.bytemap.helper.plist
+      to: Library/LaunchDaemons/com.niharturumella.bytemap.helper.plist
+dmg:
+  artifactName: ${name}-${version}.${ext}
+linux:
+  icon: build/icon.png
+  target:
+    - AppImage
+    - snap
+    - deb
+  maintainer: electronjs.org
+  category: Utility
+appImage:
+  artifactName: ${name}-${version}.${ext}
+npmRebuild: false
+publish:
+  provider: generic
+  url: https://example.com/auto-updates

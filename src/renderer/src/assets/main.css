@@ -1,0 +1,54 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+:root {
+  /* Disk-usage treemap — validated categorical palette (see dataviz skill), fixed order */
+  --viz-dir: #2a78d6;
+  --viz-file: #1baf7a;
+  --viz-cache: #eda100;
+  --viz-bundle: #4a3aa7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --viz-dir: #3987e5;
+    --viz-file: #199e70;
+    --viz-cache: #c98500;
+    --viz-bundle: #9085e9;
+  }
+}
+
+body {
+  @apply bg-white text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  font-family: var(--font-sans);
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-neutral-300 dark:bg-neutral-700;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
