@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { execFile } from 'child_process'
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { promisify } from 'util'
 import type { PrivilegedHelperState, PrivilegedHelperStatus } from '@shared/types'
 
@@ -23,6 +23,39 @@ function ctlPath(): string | null {
     if (existsSync(candidate)) return candidate
   }
   return null
+}
+
+function appBundlePath(): string {
+  // process.execPath → …/Bytemap.app/Contents/MacOS/Bytemap
+  return join(dirname(process.execPath), '..', '..')
+}
+
+function helperPlistPath(): string {
+  return join(appBundlePath(), 'Contents', 'Library', 'LaunchDaemons', `${HELPER_LABEL}.plist`)
+}
+
+/**
+ * SMAppService.daemon(plistName:) only works from a properly signed app bundle
+ * (Developer ID / Apple Development with a Team ID). Ad-hoc / linker-signed builds
+ * ship the plist at the right path but macOS returns "Unable to read plist".
+ */
+async function isSmapServiceEligible(): Promise<boolean> {
+  if (!app.isPackaged || process.platform !== 'darwin') return false
+  if (!existsSync(helperPlistPath())) return false
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      'codesign',
+      ['-dv', '--verbose=4', appBundlePath()],
+      { timeout: 15_000 }
+    )
+    const out = `${stdout}\n${stderr}`
+    if (/Signature=adhoc/i.test(out)) return false
+    if (/TeamIdentifier=not set/i.test(out)) return false
+    if (!/TeamIdentifier=[A-Z0-9]+/i.test(out)) return false
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function runCtl(args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -55,12 +88,12 @@ function parseStatus(raw: string): PrivilegedHelperStatus {
 }
 
 export async function helperStatus(): Promise<PrivilegedHelperState> {
-  const canRegister = app.isPackaged
   const ctl = ctlPath()
+  const canRegister = await isSmapServiceEligible()
   if (!ctl) {
-    return { status: 'unavailable', ctlAvailable: false, canRegister }
+    return { status: 'unavailable', ctlAvailable: false, canRegister: false }
   }
-  // Outside a signed .app, SMAppService cannot load the helper plist — don't advertise install.
+  // Outside a Developer-signed .app, SMAppService cannot load the helper plist.
   if (!canRegister) {
     return { status: 'unavailable', ctlAvailable: true, canRegister: false }
   }
@@ -78,17 +111,17 @@ export async function isHelperReady(): Promise<boolean> {
 
 /** Triggers the one-time SMAppService registration (system auth dialog). */
 export async function registerHelper(): Promise<PrivilegedHelperState> {
-  if (!app.isPackaged) {
+  if (!(await isSmapServiceEligible())) {
     throw new Error(
-      'The protected-file helper can only be installed from a signed Bytemap.app. In development, protected deletes use a one-time admin password prompt instead.'
+      'The protected-file helper needs a Developer ID–signed Bytemap.app. This build is not signed for SMAppService — protected deletes will use a one-time admin password prompt instead.'
     )
   }
   const { stdout, stderr, code } = await runCtl(['register'])
   if (code !== 0) {
     const detail = stderr || stdout || 'Failed to register privileged helper'
-    if (/codesign|signing|-67028/i.test(detail)) {
+    if (/unable to read plist|codesign|signing|-67028/i.test(detail)) {
       throw new Error(
-        'Helper install needs a properly signed Bytemap.app (Developer ID). Codesigning failed loading the helper plist.'
+        'Helper install needs a properly signed Bytemap.app (Developer ID). macOS could not load the helper plist from this unsigned/ad-hoc build.'
       )
     }
     throw new Error(detail)

@@ -64,6 +64,10 @@ export function ConfirmModal({
     parts.push(
       'If any path needs admin rights, Bytemap will ask once to install a protected-file helper'
     )
+  } else if (!helperReady && helperState && !helperAvailable) {
+    parts.push(
+      'Protected paths may ask for your admin password once (helper install needs a signed build)'
+    )
   }
 
   return (

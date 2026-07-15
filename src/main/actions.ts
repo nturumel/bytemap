@@ -1,4 +1,4 @@
-import { app, shell } from 'electron'
+import { shell } from 'electron'
 import { execFile } from 'child_process'
 import { access, constants, existsSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'fs'
 import { rm } from 'fs/promises'
@@ -74,9 +74,10 @@ function isSealedSimulatorRuntime(path: string): boolean {
 }
 
 /**
- * Dev/unpackaged last resort — one admin password for the batch via osascript.
- * Runs a temp shell script (avoids AppleScript quoting footguns) and prefers Trash,
- * falling back to rm -rf when mv into Trash fails (xattrs / cross-volume).
+ * One-shot admin password for the batch via osascript.
+ * Used in development and for packaged builds that cannot register SMAppService
+ * (ad-hoc / unsigned apps). Runs a temp shell script (avoids AppleScript quoting
+ * footguns) and prefers Trash, falling back to rm -rf when mv into Trash fails.
  */
 async function elevateBatch(
   ops: { path: string; preferRemove: boolean }[]
@@ -249,36 +250,33 @@ export async function performDeletions(items: DeleteItem[]): Promise<DeleteResul
   }
 
   const status = await helperStatus()
-  if (app.isPackaged && status.canRegister) {
+  // Properly signed builds can install the SMAppService helper once — defer to the UI.
+  if (status.canRegister) {
     for (const item of needsPrivilege) {
       results.push({ id: item.id, path: item.path, ok: false, error: HELPER_REQUIRED })
     }
     return results
   }
 
-  // Unpackaged/dev: one osascript auth for the batch.
-  if (!app.isPackaged) {
-    try {
-      const ops = needsPrivilege.map((item) => ({
-        path: item.path,
-        preferRemove: item.action?.kind === 'remove'
-      }))
-      results.push(...(await applyPrivilegeMap(needsPrivilege, await elevateBatch(ops))))
-    } catch (err) {
-      console.error('[delete] elevate failed:', err)
-      const message =
-        err instanceof Error && /user canceled|cancelled/i.test(err.message)
-          ? 'Admin authorization was cancelled'
-          : describeFsFailure(err)
-      for (const item of needsPrivilege) {
-        results.push({ id: item.id, path: item.path, ok: false, error: message })
-      }
+  // Dev / unsigned packaged: one osascript auth for the batch (helper registration impossible).
+  try {
+    console.log(
+      `[delete] elevating ${needsPrivilege.length} path(s) via admin prompt (helper cannot register)`
+    )
+    const ops = needsPrivilege.map((item) => ({
+      path: item.path,
+      preferRemove: item.action?.kind === 'remove'
+    }))
+    results.push(...(await applyPrivilegeMap(needsPrivilege, await elevateBatch(ops))))
+  } catch (err) {
+    console.error('[delete] elevate failed:', err)
+    const message =
+      err instanceof Error && /user canceled|cancelled/i.test(err.message)
+        ? 'Admin authorization was cancelled'
+        : describeFsFailure(err)
+    for (const item of needsPrivilege) {
+      results.push({ id: item.id, path: item.path, ok: false, error: message })
     }
-    return results
-  }
-
-  for (const item of needsPrivilege) {
-    results.push({ id: item.id, path: item.path, ok: false, error: HELPER_REQUIRED })
   }
   return results
 }

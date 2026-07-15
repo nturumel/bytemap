@@ -14,6 +14,13 @@ function isIrreversible(item: ScanItem): boolean {
   return item.action?.kind === 'remove' || item.action?.kind === 'dockerPrune'
 }
 
+/** Strip Electron’s “Error invoking remote method …” wrapper for UI display. */
+function ipcErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err)
+  const match = raw.match(/^Error invoking remote method '[^']+': (?:Error: )?([\s\S]+)$/)
+  return match ? match[1].trim() : raw
+}
+
 export interface UseScanState {
   phase: Phase
   items: ScanItem[]
@@ -193,7 +200,7 @@ export function useScan(): UseScanState {
       finishDelete(merged)
     } catch (err) {
       setHelperInstalling(false)
-      setHelperError(err instanceof Error ? err.message : String(err))
+      setHelperError(ipcErrorMessage(err))
     }
   }, [helperPrompt, applySuccessfulDeletes, finishDelete])
 

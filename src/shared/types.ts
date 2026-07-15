@@ -16,7 +16,7 @@ export interface PrivilegedHelperState {
   status: PrivilegedHelperStatus
   /** Whether BytemapHelperCtl is present (packaged app / built helper). */
   ctlAvailable: boolean
-  /** SMAppService.register only works from a signed packaged Bytemap.app. */
+  /** SMAppService.register only works from a Developer-signed packaged Bytemap.app. */
   canRegister: boolean
 }
 
