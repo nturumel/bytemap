@@ -8,7 +8,8 @@ import type {
   ScanCategoryId,
   ScanDoneEvent,
   ScanItem,
-  ScanProgressEvent
+  ScanProgressEvent,
+  VolumeStats
 } from '@shared/types'
 
 export interface PreloadApi {
@@ -37,6 +38,7 @@ export interface PreloadApi {
     unwatch: () => Promise<void>
     expectChanges: (paths: string[]) => Promise<void>
     onChanged: (cb: (event: DiskChangeEvent) => void) => () => void
+    getVolumeStats: (path?: string) => Promise<VolumeStats>
   }
   shell: {
     showItemInFolder: (path: string) => Promise<void>

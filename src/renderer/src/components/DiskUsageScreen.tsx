@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDiskUsage } from '../hooks/useDiskUsage'
+import { useVolumeStats } from '../hooks/useVolumeStats'
 import { Treemap, suggestedTargetPaths } from './Treemap'
 import { TileActionPanel, nodeToScanItem } from './TileActionPanel'
 import { ConfirmModal } from './ConfirmModal'
+import { VolumeCapacityMeter } from './VolumeCapacityMeter'
 import { formatBytes } from '@shared/format'
 import { SpinnerIcon } from './icons'
 import { classifyPath } from '@shared/cleanupTargets'
@@ -31,6 +33,8 @@ export function DiskUsageScreen({ onBack }: { onBack: () => void }): React.JSX.E
     refresh,
     removeChild
   } = useDiskUsage()
+
+  const { stats: volumeStats, refresh: refreshVolume } = useVolumeStats()
 
   const [helperState, setHelperState] = useState<PrivilegedHelperState | null>(null)
   const [confirmItem, setConfirmItem] = useState<ScanItem | null>(null)
@@ -161,6 +165,7 @@ export function DiskUsageScreen({ onBack }: { onBack: () => void }): React.JSX.E
         removeChild(confirmItem.path)
         setSelectedPath(null)
         setStatusMsg(`Cleared ${confirmItem.name}`)
+        refreshVolume()
         // Watcher + expectChanges will SWR-refresh; avoid a second force load.
       } else {
         setStatusMsg(results.find((r) => !r.ok)?.error ?? 'Could not delete')
@@ -171,11 +176,11 @@ export function DiskUsageScreen({ onBack }: { onBack: () => void }): React.JSX.E
       setConfirmItem(null)
       setBusy(false)
     }
-  }, [confirmItem, helperState, removeChild, setSelectedPath])
+  }, [confirmItem, helperState, removeChild, setSelectedPath, refreshVolume])
 
   return (
     <div className="viz-shell flex h-full flex-col">
-      <header className="drag-region flex shrink-0 items-center justify-between border-b border-[var(--viz-rule)] px-5 pb-3 pt-11">
+      <header className="drag-region flex shrink-0 items-center justify-between gap-4 border-b border-[var(--viz-rule)] px-5 pb-3 pt-11">
         <div className="min-w-0">
           <div className="flex items-center gap-1 font-display text-sm font-semibold tracking-wide">
             {breadcrumbs.map((b, i) => (
@@ -199,7 +204,8 @@ export function DiskUsageScreen({ onBack }: { onBack: () => void }): React.JSX.E
             {statusMsg && ` · ${statusMsg}`}
           </p>
         </div>
-        <div className="no-drag flex items-center gap-2">
+        <VolumeCapacityMeter stats={volumeStats} compact className="mx-auto hidden sm:flex" />
+        <div className="no-drag flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={cycleSuggestions}

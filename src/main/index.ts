@@ -14,6 +14,7 @@ import {
   diskWatchService
 } from './diskWatch'
 import type { DeleteRequest } from '@shared/types'
+import { getVolumeStats } from './volumeStats'
 
 const FULL_DISK_ACCESS_SETTINGS_URL =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'
@@ -122,6 +123,8 @@ function createWindow(): void {
   ipcMain.handle('disk:expectChanges', (_event, paths: string[]) => {
     diskWatchService.expectChanges(paths)
   })
+
+  ipcMain.handle('disk:getVolumeStats', (_event, path?: string) => getVolumeStats(path ?? '/'))
 
   ipcMain.handle('shell:showItemInFolder', (_event, targetPath: string) => {
     shell.showItemInFolder(targetPath)

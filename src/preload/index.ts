@@ -9,7 +9,8 @@ import type {
   ScanCategoryId,
   ScanDoneEvent,
   ScanItem,
-  ScanProgressEvent
+  ScanProgressEvent,
+  VolumeStats
 } from '@shared/types'
 
 // Custom APIs for renderer
@@ -66,7 +67,9 @@ const api = {
       const listener = (_: unknown, event: DiskChangeEvent): void => cb(event)
       ipcRenderer.on('disk:changed', listener)
       return () => ipcRenderer.removeListener('disk:changed', listener)
-    }
+    },
+    getVolumeStats: (path?: string): Promise<VolumeStats> =>
+      ipcRenderer.invoke('disk:getVolumeStats', path)
   },
   shell: {
     showItemInFolder: (path: string): Promise<void> =>

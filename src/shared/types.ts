@@ -114,3 +114,28 @@ export interface DiskChangeEvent {
   generation: number
   selfTriggered: boolean
 }
+
+/** Capacity of the volume containing a path (whole-disk used vs free — not a treemap breakdown). */
+export interface VolumeStats {
+  /** Path used for the statfs probe (usually "/"). */
+  path: string
+  totalBytes: number
+  /** Space available to non-root (bavail). */
+  freeBytes: number
+  /** totalBytes − freeBytes. */
+  usedBytes: number
+  /** usedBytes / totalBytes, 0–1. */
+  usedRatio: number
+  /** User-visible name from diskutil, e.g. "Macintosh HD". */
+  volumeName: string | null
+  /** Mount point reported by diskutil (falls back to probe path). */
+  mountPoint: string
+  /** File system personality when known, e.g. "APFS". */
+  fileSystem: string | null
+  /** Other local non-boot volumes under /Volumes (excludes network mounts). */
+  otherVolumeCount: number
+  /** Sum of free space across those other volumes. */
+  otherVolumesFreeBytes: number
+  /** Basename of the home folder — treemap/scan scope, not whole-disk capacity. */
+  mapRootLabel: string
+}
