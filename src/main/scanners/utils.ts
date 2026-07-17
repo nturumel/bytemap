@@ -2,7 +2,7 @@ import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { promises as fs } from 'fs'
 import { join } from 'path'
-import { dirSize, dirSizes } from '../native'
+import { dirSize, dirSizes } from '../scanner'
 
 export { formatBytes } from '@shared/format'
 

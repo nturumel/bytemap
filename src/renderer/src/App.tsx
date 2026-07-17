@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useScan } from './hooks/useScan'
 import { IntroScreen } from './components/IntroScreen'
 import { ScanningScreen } from './components/ScanningScreen'
@@ -7,12 +7,25 @@ import { DeletingScreen } from './components/DeletingScreen'
 import { DoneScreen } from './components/DoneScreen'
 import { DiskUsageScreen } from './components/DiskUsageScreen'
 import { HelperInstallModal } from './components/HelperInstallModal'
+import { AgentChatWidget } from './components/AgentChatWidget'
+import { buildFreeChatAgentContext, buildGlobalScanAgentContext } from './lib/agentContext'
 
 type View = 'cleanup' | 'diskUsage'
 
 function App(): React.JSX.Element {
   const scan = useScan()
   const [view, setView] = useState<View>('cleanup')
+  const agentContext = useMemo(
+    () =>
+      scan.phase === 'intro'
+        ? buildFreeChatAgentContext()
+        : buildGlobalScanAgentContext({
+            phase: scan.phase,
+            items: scan.items,
+            selectedIds: scan.selected
+          }),
+    [scan.phase, scan.items, scan.selected]
+  )
 
   if (view === 'diskUsage') {
     return (
@@ -72,6 +85,8 @@ function App(): React.JSX.Element {
           onBackToResults={scan.backToResults}
         />
       )}
+
+      <AgentChatWidget context={agentContext} />
     </div>
   )
 }

@@ -66,7 +66,9 @@ export function useDiskUsage(): UseDiskUsageState {
     null
   )
 
-  breadcrumbsRef.current = breadcrumbs
+  useEffect(() => {
+    breadcrumbsRef.current = breadcrumbs
+  }, [breadcrumbs])
 
   useEffect(() => {
     return window.api.disk.onChild((node) => {

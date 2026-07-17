@@ -139,3 +139,105 @@ export interface VolumeStats {
   /** Basename of the home folder — treemap/scan scope, not whole-disk capacity. */
   mapRootLabel: string
 }
+
+export type BytemapAgentContextKind =
+  | 'globalScan'
+  | 'cleanupSelection'
+  | 'confirmCleanup'
+  | 'deleteFailure'
+  | 'permissionIssue'
+  | 'visualTile'
+  | 'diskMapView'
+  | 'cloudReady'
+  | 'freeChat'
+
+export type BytemapAgentSubject = {
+  id: string
+  path?: string
+  name: string
+  sizeBytes?: number
+  isDir?: boolean
+  category?: string
+  reason?: string
+  action?: unknown
+  deletable?: boolean
+  keptInsteadOf?: string
+  error?: string
+  cleanupTier?: string
+  cleanupLabel?: string
+  cleanupReason?: string
+  cloudProvider?: string
+  cloudBackupStatus?: string
+}
+
+export type BytemapAgentContext = {
+  kind: BytemapAgentContextKind
+  phase?: string
+  view?: string
+  summary?: string | Record<string, unknown>
+  subjects: BytemapAgentSubject[]
+}
+
+export type BytemapAgentRequest = {
+  sessionId?: string
+  requestId: string
+  message: string
+  context: BytemapAgentContext
+}
+
+export type BytemapAgentEvent =
+  | { requestId: string; sessionId: string; type: 'status'; text: string }
+  | { requestId: string; sessionId: string; type: 'assistant_delta'; text: string }
+  | { requestId: string; sessionId: string; type: 'thinking_delta'; text: string }
+  | {
+      requestId: string
+      sessionId: string
+      type: 'tool_start' | 'tool_update' | 'tool_end'
+      toolName: string
+      text?: string
+      ok?: boolean
+    }
+  | { requestId: string; sessionId: string; type: 'error'; text: string }
+
+export type BytemapAgentResponse = {
+  requestId: string
+  sessionId: string
+  answer: string
+}
+
+export type OmpProviderId =
+  | 'anthropic'
+  | 'openai-codex'
+  | 'openai'
+  | 'google'
+  | 'google-gemini-cli'
+  | 'google-antigravity'
+  | 'github-copilot'
+  | 'cursor'
+  | 'ollama'
+  | 'lm-studio'
+  | 'llama.cpp'
+  | string
+
+export type OmpProviderStatus =
+  | 'available'
+  | 'needsLogin'
+  | 'needsApiKey'
+  | 'localUnavailable'
+  | 'disabled'
+
+export type OmpProviderSummary = {
+  id: OmpProviderId
+  label: string
+  authKind: 'oauth' | 'apiKey' | 'local' | 'custom'
+  status: OmpProviderStatus
+  envVars: string[]
+  models: { id: string; label: string; provider: string; selected: boolean }[]
+  loginSupported: boolean
+  logoutSupported: boolean
+}
+
+export type OmpProviderSnapshot = {
+  providers: OmpProviderSummary[]
+  selectedModelId: string | null
+}

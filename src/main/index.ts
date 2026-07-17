@@ -1,20 +1,19 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
+import { randomUUID } from 'crypto'
 import { existsSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { runScan } from './scanners'
 import { performDeletions, performHelperDeletions } from './actions'
-import { helperStatus, registerHelper } from './privilegedHelper'
+import { ctlPath, helperStatus, registerHelper } from './privilegedHelper'
 import { refreshFullDiskAccess } from './scanners/usageDb'
-import { dirBreakdownStream } from './native'
-import {
-  auxiliariesOutsideRoot,
-  defaultCleanupWatchRoots,
-  diskWatchService
-} from './diskWatch'
+import { cancelDirBreakdown, dirBreakdownStream, disposeScannerRuntime } from './scanner'
+import { auxiliariesOutsideRoot, defaultCleanupWatchRoots, diskWatchService } from './diskWatch'
 import type { DeleteRequest } from '@shared/types'
 import { getVolumeStats } from './volumeStats'
+import { AgentGrpcRuntimeClient } from './agentGrpcClient'
+import type { BytemapAgentRequest } from '@shared/types'
 
 const FULL_DISK_ACCESS_SETTINGS_URL =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'
@@ -35,6 +34,14 @@ function createWindow(): void {
   })
 
   const cacheDbPath = join(app.getPath('userData'), 'scan-cache.db')
+  const agentRuntime = new AgentGrpcRuntimeClient({
+    helperCtlPath: ctlPath,
+    helperStatus,
+    refreshFullDiskAccess,
+    sendEvent: (payload) => {
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('agent:event', payload)
+    }
+  })
 
   ipcMain.handle('scan:start', async () => {
     const start = Date.now()
@@ -69,11 +76,41 @@ function createWindow(): void {
   ipcMain.handle('helper:status', () => helperStatus())
 
   ipcMain.handle('helper:register', () => registerHelper())
+  ipcMain.handle('agent:providers', () => agentRuntime.providers())
 
-  // If the user drills into a new folder before the previous breakdown finishes streaming,
-  // late-arriving nodes from the superseded request must not leak into the new view — the
-  // Rust side has no cancellation, so filter by "is this still the latest request" here.
+  ipcMain.handle('agent:loginProvider', (_event, providerId: string) =>
+    agentRuntime.loginProvider(providerId)
+  )
+
+  ipcMain.handle('agent:setProviderApiKey', (_event, providerId: string, apiKey: string) =>
+    agentRuntime.setProviderApiKey(providerId, apiKey)
+  )
+
+  ipcMain.handle('agent:logoutProvider', (_event, providerId: string) =>
+    agentRuntime.logoutProvider(providerId)
+  )
+
+  ipcMain.handle('agent:selectModel', (_event, modelId: string) =>
+    agentRuntime.selectModel(modelId)
+  )
+
+  ipcMain.handle('agent:ask', (_event, request: BytemapAgentRequest) => agentRuntime.ask(request))
+
+  ipcMain.handle('agent:reset', (_event, sessionId: string) => agentRuntime.reset(sessionId))
+
+  ipcMain.handle('agent:cancel', (_event, requestId: string, sessionId: string) =>
+    agentRuntime.cancel(requestId, sessionId)
+  )
+
+  mainWindow.on('closed', () => {
+    void agentRuntime.disposeAll()
+    void disposeScannerRuntime()
+  })
+
+  // Keep the renderer view isolated from superseded requests, while also cancelling the
+  // corresponding Rust operation instead of allowing it to keep traversing in the background.
   let latestBreakdownRequest = 0
+  let activeBreakdownRequestId: string | null = null
 
   diskWatchService.refreshQuietPrefixes()
   diskWatchService.setListener((payload) => {
@@ -84,24 +121,45 @@ function createWindow(): void {
 
   ipcMain.handle('disk:breakdown', async (_event, path: string | null) => {
     const requestId = ++latestBreakdownRequest
+    const scannerRequestId = randomUUID()
+    const priorRequestId = activeBreakdownRequestId
+    activeBreakdownRequestId = scannerRequestId
+    if (priorRequestId) {
+      void cancelDirBreakdown(priorRequestId).catch((error: unknown) =>
+        console.warn('[scanner] failed to cancel superseded breakdown', error)
+      )
+    }
+
     const target = path ?? app.getPath('home')
     diskWatchService.beginBreakdown(target)
     try {
-      await dirBreakdownStream(target, 1, (node) => {
-        if (requestId !== latestBreakdownRequest) return
-        mainWindow.webContents.send('disk:breakdown-child', node)
-      })
+      await dirBreakdownStream(
+        target,
+        1,
+        (node) => {
+          if (requestId !== latestBreakdownRequest) return
+          mainWindow.webContents.send('disk:breakdown-child', node)
+        },
+        scannerRequestId
+      )
     } finally {
+      if (activeBreakdownRequestId === scannerRequestId) activeBreakdownRequestId = null
       // Always pair beginBreakdown (including superseded requests) so the global gate closes.
       diskWatchService.endBreakdown(target)
     }
   })
 
-  // Cache-hit navigations (e.g. breadcrumb back) never call breakdown, so bump the request
-  // id explicitly — otherwise an in-flight scan keeps streaming into the restored view.
-  // Do not endBreakdown here: the in-flight handler's `finally` pairs begin/end exactly once.
+  // Cache-hit navigations (e.g. breadcrumb back) never call breakdown, so cancel the actual
+  // sidecar operation as well as filtering any in-flight node event at the renderer boundary.
   ipcMain.handle('disk:cancelBreakdown', () => {
     latestBreakdownRequest++
+    const requestId = activeBreakdownRequestId
+    activeBreakdownRequestId = null
+    if (requestId) {
+      void cancelDirBreakdown(requestId).catch((error: unknown) =>
+        console.warn('[scanner] failed to cancel breakdown', error)
+      )
+    }
   })
 
   ipcMain.handle('disk:watch', (_event, path: string | null) => {
@@ -189,6 +247,10 @@ app.whenReady().then(() => {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => {
+  void disposeScannerRuntime()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

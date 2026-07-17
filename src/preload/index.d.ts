@@ -1,9 +1,13 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
+  BytemapAgentEvent,
+  BytemapAgentRequest,
+  BytemapAgentResponse,
   DeleteRequest,
   DeleteResult,
   DiskChangeEvent,
   DiskNode,
+  OmpProviderSnapshot,
   PrivilegedHelperState,
   ScanCategoryId,
   ScanDoneEvent,
@@ -24,6 +28,17 @@ export interface PreloadApi {
   helper: {
     status: () => Promise<PrivilegedHelperState>
     register: () => Promise<PrivilegedHelperState>
+  }
+  agent: {
+    ask: (request: BytemapAgentRequest) => Promise<BytemapAgentResponse>
+    reset: (sessionId: string) => Promise<void>
+    cancel: (requestId: string, sessionId: string) => Promise<{ ok: boolean; reason?: string }>
+    providers: () => Promise<OmpProviderSnapshot>
+    loginProvider: (providerId: string) => Promise<OmpProviderSnapshot>
+    setProviderApiKey: (providerId: string, apiKey: string) => Promise<OmpProviderSnapshot>
+    logoutProvider: (providerId: string) => Promise<OmpProviderSnapshot>
+    selectModel: (modelId: string) => Promise<void>
+    onEvent: (cb: (event: BytemapAgentEvent) => void) => () => void
   }
   system: {
     checkFullDiskAccess: () => Promise<boolean>

@@ -12,7 +12,6 @@ export function StorageStatusCard({
 
   useEffect(() => {
     if (!stats) return
-    setEntered(false)
     const id = window.setTimeout(() => setEntered(true), 60)
     return () => window.clearTimeout(id)
   }, [stats])

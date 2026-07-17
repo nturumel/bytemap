@@ -15,11 +15,7 @@ function useCountUp(target: number, durationMs: number, enabled: boolean): numbe
   const fromRef = useRef(0)
 
   useEffect(() => {
-    if (!enabled) {
-      setValue(target)
-      fromRef.current = target
-      return
-    }
+    if (!enabled) return
     const from = fromRef.current
     const start = performance.now()
     let raf = 0
@@ -34,7 +30,7 @@ function useCountUp(target: number, durationMs: number, enabled: boolean): numbe
     return () => cancelAnimationFrame(raf)
   }, [target, durationMs, enabled])
 
-  return value
+  return enabled ? value : target
 }
 
 export function VolumeCapacityMeter({
@@ -53,7 +49,6 @@ export function VolumeCapacityMeter({
 
   useEffect(() => {
     if (!stats) return
-    setEntered(false)
     const id = window.setTimeout(() => setEntered(true), 40)
     return () => window.clearTimeout(id)
   }, [stats])

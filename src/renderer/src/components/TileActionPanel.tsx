@@ -181,6 +181,7 @@ export function TileActionPanel({
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function nodeToScanItem(
   node: DiskNode,
   target: CleanupTarget | null,

@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@source '../../../../node_modules/streamdown/dist/*.js';
 
 /*
   Bytemap visual language: industrial precision / spatial survey instrument.
@@ -31,6 +32,17 @@ body,
   --viz-rule: color-mix(in srgb, #0f172a 10%, transparent);
   --viz-panel: #f4f6f8;
   --viz-field: #e8edf2;
+  --background: var(--viz-panel);
+  --foreground: var(--viz-ink);
+  --card: var(--viz-panel);
+  --card-foreground: var(--viz-ink);
+  --muted: var(--viz-field);
+  --muted-foreground: var(--viz-muted);
+  --border: var(--viz-rule);
+  --input: var(--viz-rule);
+  --primary: var(--viz-dir);
+  --primary-foreground: #ffffff;
+  --radius: 0.75rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -620,4 +632,61 @@ body {
   font-size: 10px;
   line-height: 1.4;
   color: var(--viz-muted);
+}
+
+.agent-chip {
+  border: 1px solid var(--viz-rule);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--viz-ink);
+  background: color-mix(in srgb, var(--viz-ink) 5%, transparent);
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    opacity 120ms ease;
+}
+
+.agent-chip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--viz-ink) 9%, transparent);
+}
+
+.agent-chip:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.agent-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.bytemap-markdown {
+  min-width: 0;
+  color: inherit;
+  font-size: inherit;
+  line-height: 1.65;
+}
+
+.bytemap-markdown > :first-child {
+  margin-top: 0;
+}
+
+.bytemap-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.bytemap-markdown a {
+  color: var(--viz-dir);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bytemap-markdown pre {
+  border: 1px solid var(--viz-rule);
+  background: var(--viz-field);
+}
+
+.bytemap-markdown table {
+  font-size: 12px;
 }
