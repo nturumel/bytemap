@@ -8,9 +8,8 @@ import { VolumeCapacityMeter } from './VolumeCapacityMeter'
 import { formatBytes } from '@shared/format'
 import { SpinnerIcon } from './icons'
 import { classifyPath } from '@shared/cleanupTargets'
-import type { DiskNode, PrivilegedHelperState, ScanItem } from '@shared/types'
+import type { BytemapAgentContext, DiskNode, PrivilegedHelperState, ScanItem } from '@shared/types'
 import { HELPER_REQUIRED } from '@shared/types'
-import { AgentChatWidget } from './AgentChatWidget'
 import { buildDiskMapAgentContext } from '../lib/agentContext'
 
 const LEGEND: { label: string; varName: string }[] = [
@@ -22,7 +21,19 @@ const LEGEND: { label: string; varName: string }[] = [
   { label: 'Caution', varName: '--viz-target-caution' }
 ]
 
-export function DiskUsageScreen({ onBack }: { onBack: () => void }): React.JSX.Element {
+export type DiskAgentSurface = {
+  context: BytemapAgentContext
+  seedPrompt: string
+  buttonLabel: string
+}
+
+export function DiskUsageScreen({
+  onBack,
+  onAgentSurfaceChange
+}: {
+  onBack: () => void
+  onAgentSurfaceChange?: (surface: DiskAgentSurface) => void
+}): React.JSX.Element {
   const {
     breadcrumbs,
     children,
@@ -72,6 +83,13 @@ export function DiskUsageScreen({ onBack }: { onBack: () => void }): React.JSX.E
     ? `Ask agent about this tile: ${selectedNode.path}`
     : 'Ask agent to inspect this disk map view'
 
+  useEffect(() => {
+    onAgentSurfaceChange?.({
+      context: agentContext,
+      seedPrompt: agentSeedPrompt,
+      buttonLabel: 'Ask agent about this tile'
+    })
+  }, [agentContext, agentSeedPrompt, onAgentSurfaceChange])
 
   const suggestions = useMemo(
     () => suggestedTargetPaths(visibleChildren).filter((p) => !ignored.has(p)),
@@ -323,8 +341,6 @@ export function DiskUsageScreen({ onBack }: { onBack: () => void }): React.JSX.E
           }}
         />
       )}
-      <AgentChatWidget context={agentContext} seedPrompt={agentSeedPrompt} buttonLabel="Ask agent about this tile" />
-
     </div>
   )
 }

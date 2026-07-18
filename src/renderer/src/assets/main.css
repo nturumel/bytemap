@@ -18,13 +18,22 @@ body,
   height: 100%;
 }
 
+/*
+  Category palette. Six legend categories must separate at a glance on the
+  treemap, including for red-green color-vision deficiency (hue + lightness):
+  folder blue / file cyan / cache violet / library slate / safe green /
+  caution orange. Cache is violet (not amber) so it can never be confused
+  with the caution warning color. --viz-accent-warm is the old amber, kept
+  for decorative warm accents and "disk almost full" warn states only.
+*/
 :root {
   --viz-dir: #2f6fed;
-  --viz-file: #0f9f72;
-  --viz-cache: #d97706;
+  --viz-file: #0891b2;
+  --viz-cache: #7c3aed;
   --viz-bundle: #5b6b8c;
-  --viz-target-safe: #14b8a6;
-  --viz-target-caution: #f59e0b;
+  --viz-accent-warm: #d97706;
+  --viz-target-safe: #059669;
+  --viz-target-caution: #ea580c;
   --viz-target-inspect: #64748b;
   --viz-target-protected: #94a3b8;
   --viz-ink: #0f172a;
@@ -48,11 +57,12 @@ body,
 @media (prefers-color-scheme: dark) {
   :root {
     --viz-dir: #4d8eff;
-    --viz-file: #2dd4a0;
-    --viz-cache: #fbbf24;
+    --viz-file: #0aa2c0;
+    --viz-cache: #8b5cf6;
     --viz-bundle: #8b9bb8;
-    --viz-target-safe: #2dd4bf;
-    --viz-target-caution: #fbbf24;
+    --viz-accent-warm: #fbbf24;
+    --viz-target-safe: #34d399;
+    --viz-target-caution: #f97316;
     --viz-target-inspect: #94a3b8;
     --viz-target-protected: #64748b;
     --viz-ink: #e2e8f0;
@@ -66,8 +76,16 @@ body,
 body {
   @apply antialiased;
   background:
-    radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--viz-dir) 12%, transparent), transparent),
-    radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--viz-cache) 8%, transparent), transparent),
+    radial-gradient(
+      1200px 600px at 10% -10%,
+      color-mix(in srgb, var(--viz-dir) 12%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      900px 500px at 100% 0%,
+      color-mix(in srgb, var(--viz-accent-warm) 8%, transparent),
+      transparent
+    ),
     var(--viz-field);
   color: var(--viz-ink);
   font-family: var(--font-sans);
@@ -362,7 +380,7 @@ body {
 }
 
 .viz-capacity[data-level='warn'] {
-  --viz-capacity-from: var(--viz-cache);
+  --viz-capacity-from: var(--viz-accent-warm);
   --viz-capacity-to: var(--viz-target-caution);
 }
 
@@ -392,7 +410,9 @@ body {
 
 .viz-capacity__arc {
   stroke: var(--viz-capacity-from);
-  transition: stroke-dashoffset 900ms cubic-bezier(0.22, 1, 0.36, 1), stroke 240ms ease;
+  transition:
+    stroke-dashoffset 900ms cubic-bezier(0.22, 1, 0.36, 1),
+    stroke 240ms ease;
 }
 
 .viz-capacity__pct {
@@ -540,7 +560,7 @@ body {
 
 .intro-storage[data-level='warn'] .intro-storage__bar-fill::before,
 .intro-storage:has(.viz-capacity[data-level='warn']) .intro-storage__bar-fill::before {
-  background: var(--viz-cache);
+  background: var(--viz-accent-warm);
 }
 
 .intro-storage:has(.viz-capacity[data-level='critical']) .intro-storage__bar-fill::before {
@@ -661,6 +681,158 @@ body {
   opacity: 0.45;
 }
 
+/* Compact icon-only header controls for the agent panel. */
+.agent-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  color: var(--viz-muted);
+  background: transparent;
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.agent-icon-btn:hover:not(:disabled) {
+  color: var(--viz-ink);
+  background: color-mix(in srgb, var(--viz-ink) 8%, transparent);
+  border-color: var(--viz-rule);
+}
+
+.agent-icon-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.agent-icon-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--viz-dir) 60%, transparent);
+  outline-offset: 1px;
+}
+
+.agent-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.agent-icon-btn--danger:hover:not(:disabled) {
+  color: #ef4444;
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border-color: color-mix(in srgb, #ef4444 30%, transparent);
+}
+
+/* Send / Stop controls beside the composer. */
+.agent-send-btn,
+.agent-stop-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    filter 120ms ease,
+    opacity 120ms ease;
+}
+
+.agent-send-btn {
+  background: var(--viz-dir);
+  color: #ffffff;
+}
+
+.agent-send-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.agent-send-btn:active:not(:disabled),
+.agent-stop-btn:active {
+  transform: scale(0.94);
+}
+
+.agent-send-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.agent-send-btn:focus-visible,
+.agent-stop-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--viz-dir) 60%, transparent);
+  outline-offset: 1px;
+}
+
+.agent-stop-btn {
+  border: 1px solid color-mix(in srgb, #ef4444 35%, transparent);
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  color: #ef4444;
+}
+
+.agent-stop-btn:hover {
+  background: color-mix(in srgb, #ef4444 20%, transparent);
+}
+
+.agent-minimized-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--viz-rule);
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--viz-ink);
+  background: var(--viz-panel);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--viz-ink) 18%, transparent);
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.agent-minimized-chip:hover {
+  background: color-mix(in srgb, var(--viz-panel) 88%, var(--viz-ink));
+}
+
+.agent-minimized-chip:active {
+  transform: scale(0.98);
+}
+
+.agent-minimized-chip__pulse {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--viz-dir);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--viz-dir) 55%, transparent);
+  animation: agent-minimized-pulse 1.4s ease-out infinite;
+}
+
+.agent-minimized-chip__status {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--viz-muted);
+}
+
+@keyframes agent-minimized-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--viz-dir) 45%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 0.45rem transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 .bytemap-markdown {
   min-width: 0;
   color: inherit;
@@ -689,4 +861,273 @@ body {
 
 .bytemap-markdown table {
   font-size: 12px;
+}
+
+.agent-tool-scroll {
+  overscroll-behavior: contain;
+}
+
+.agent-plan-pending {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--viz-muted);
+}
+
+.agent-plan-pending > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--viz-target-safe);
+  animation: agent-plan-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes agent-plan-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
+.agent-cleanup-plan {
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid color-mix(in srgb, var(--viz-target-safe) 35%, var(--viz-rule));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--viz-target-safe) 5%, var(--viz-panel));
+  animation: agent-plan-in 180ms ease-out both;
+}
+
+@keyframes agent-plan-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.agent-cleanup-plan__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--viz-rule);
+}
+
+.agent-cleanup-plan__eyebrow {
+  margin: 0 0 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--viz-target-safe);
+}
+
+.agent-cleanup-plan__header h3 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--viz-ink);
+}
+
+.agent-cleanup-plan__total {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-cleanup-plan__total strong {
+  font-size: 14px;
+  color: var(--viz-ink);
+}
+
+.agent-cleanup-plan__total span {
+  margin-top: 1px;
+  font-size: 9px;
+  color: var(--viz-muted);
+}
+
+.agent-cleanup-plan__tiers {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.agent-cleanup-tier {
+  overflow: hidden;
+  border: 1px solid var(--viz-rule);
+  border-left: 2px solid var(--viz-target-inspect);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--viz-ink) 2%, transparent);
+}
+
+.agent-cleanup-tier[data-tier='easy'] {
+  border-left-color: var(--viz-target-safe);
+}
+
+.agent-cleanup-tier[data-tier='optional'] {
+  border-left-color: var(--viz-target-caution);
+}
+
+.agent-cleanup-tier[data-tier='keep'] {
+  border-left-color: var(--viz-target-protected);
+}
+
+.agent-cleanup-tier > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--viz-rule);
+}
+
+.agent-cleanup-tier > header h4,
+.agent-cleanup-tier > header p {
+  margin: 0;
+}
+
+.agent-cleanup-tier > header h4 {
+  font-size: 11px;
+  color: var(--viz-ink);
+}
+
+.agent-cleanup-tier > header p {
+  margin-top: 1px;
+  font-size: 9px;
+  color: var(--viz-muted);
+}
+
+.agent-cleanup-tier > header > span {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--viz-muted);
+}
+
+.agent-cleanup-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px;
+}
+
+.agent-cleanup-row + .agent-cleanup-row {
+  border-top: 1px solid var(--viz-rule);
+}
+
+.agent-cleanup-row__main {
+  min-width: 0;
+  flex: 1;
+}
+
+.agent-cleanup-row__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agent-cleanup-row__title strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-cleanup-row__title span {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--viz-ink);
+}
+
+.agent-cleanup-row__path,
+.agent-cleanup-row__reason {
+  margin: 2px 0 0;
+  line-height: 1.35;
+}
+
+.agent-cleanup-row__path {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--viz-muted);
+}
+
+.agent-cleanup-row__reason {
+  font-size: 10px;
+  color: var(--viz-muted);
+}
+
+.agent-cleanup-row__actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.agent-cleanup-row__actions > span {
+  border: 1px solid var(--viz-rule);
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--viz-muted);
+}
+
+.agent-cleanup-row__actions > span[data-action='trash'] {
+  border-color: color-mix(in srgb, var(--viz-dir) 40%, transparent);
+  color: var(--viz-dir);
+}
+
+.agent-cleanup-row__actions > span[data-action='permanent'] {
+  border-color: color-mix(in srgb, var(--viz-target-caution) 40%, transparent);
+  color: var(--viz-target-caution);
+}
+
+.agent-cleanup-row__actions button {
+  padding: 2px 4px;
+  font-size: 9px;
+  color: var(--viz-muted);
+  transition: color 120ms ease;
+}
+
+.agent-cleanup-row__actions button:hover:not(:disabled) {
+  color: var(--viz-ink);
+}
+
+.agent-cleanup-row__actions button:disabled {
+  opacity: 0.35;
+}
+
+.agent-cleanup-plan__empty,
+.agent-cleanup-plan__note {
+  margin: 0;
+  color: var(--viz-muted);
+}
+
+.agent-cleanup-plan__empty {
+  padding: 12px 14px 4px;
+  font-size: 11px;
+}
+
+.agent-cleanup-plan__note {
+  padding: 0 10px 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
 }

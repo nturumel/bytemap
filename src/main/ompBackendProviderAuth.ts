@@ -167,7 +167,8 @@ export class OmpBackendProviderAuthManager {
       await this.writeSettings({ selectedModelId: null })
     }
     await this.refresh()
-    return this.snapshot()
+    // Skip auto-select so logout reliably returns the UI to the provider picker.
+    return { providers: this.buildProviderSummaries(), selectedModelId: this.selectedModelId }
   }
 
   async selectModel(modelId: string): Promise<void> {

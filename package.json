@@ -10,7 +10,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "test:contracts": "node --test tests/agent-contracts.test.mjs",
+    "test:contracts": "node --test tests/agent-contracts.test.mjs && node --experimental-strip-types --test tests/agent-tool-display.test.ts",
     "start": "electron-vite preview",
     "predev": "npm run build:scanner:if-missing && npm run build:helper:if-missing",
     "dev": "electron-vite dev",

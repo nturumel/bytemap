@@ -38,7 +38,7 @@ const OPAQUE_SUFFIXES = [
 ]
 
 function categoryColor(node: DisplayNode, sizeShare: number): string {
-  if (node.isOther) return 'var(--viz-cache)'
+  if (node.isOther) return 'var(--viz-bundle)'
   if (!node.isDir) return 'var(--viz-file)'
   if (OPAQUE_SUFFIXES.some((s) => node.name.endsWith(s))) return 'var(--viz-bundle)'
   if (CACHE_LIKE_NAMES.has(node.name) || node.target?.primaryAction === 'clearCache') {

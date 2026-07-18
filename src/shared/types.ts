@@ -194,6 +194,10 @@ export type BytemapAgentEvent =
       sessionId: string
       type: 'tool_start' | 'tool_update' | 'tool_end'
       toolName: string
+      toolCallId?: string
+      /** Formatted tool args / command for the card body (not a generic title). */
+      argsText?: string
+      /** Live or final tool output (stdout/stderr/result text). Full snapshots replace prior text. */
       text?: string
       ok?: boolean
     }

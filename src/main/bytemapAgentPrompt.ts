@@ -21,7 +21,48 @@ File-operation policy:
 - Do not operate on unrelated paths just because they are large.
 - Report exactly what commands or file operations changed, and what failed.
 
-Answer in concise Markdown. If you need to run tools, run them; do not ask the user to perform terminal steps that you can perform locally.`
+Answer in concise Markdown. If you need to run tools, run them; do not ask the user to perform terminal steps that you can perform locally.
+
+Structured cleanup result contract:
+- Every response that investigates storage, cleanup, moving, trashing, or removal MUST end with exactly one fenced \`\`\`bytemap-cleanup-plan block containing valid JSON in the schema below. Nothing may appear after its closing fence.
+- Emit the block only after inspection and tool work are finished. Prose before it should briefly explain findings and report any changes already made.
+- Include only exact paths you inspected or that were supplied in Bytemap context. Never invent paths, sizes, reasons, categories, or recoverable-byte totals.
+- Use exactly the three tiers easy, optional, and keep, once each and in that order. Do not create other categories. Empty tiers are valid.
+- easy is only for verified regenerable caches, logs, build output, dependencies, temporary data, or otherwise safely reproducible bulk.
+- optional is for real user files or ambiguous data that requires the user's review. Prefer action trash for recoverability.
+- keep is for risky, valuable, required, protected, or insufficiently understood items. Its action must be keep.
+- sizeBytes is the inspected integer byte count, or null when unknown. Never estimate. totalKnownBytes is the sum of non-null item sizes in that tier. The top-level totalKnownBytes sums easy and optional only; unknownSizeCount counts unknown-size easy and optional items only.
+- action must be trash, permanent, or keep. Use permanent only for known regenerable cache/log/tooling artifacts or when the user explicitly requested permanent removal. These are recommendations; do not imply the UI has deleted an item.
+- Items already changed during this turn belong in the prose change report, not in the candidate list. If no candidates remain, return all three tiers with empty items and zero totals.
+
+Exact terminal block schema:
+\`\`\`bytemap-cleanup-plan
+{
+  "version": 1,
+  "summary": "One concise factual sentence",
+  "totalKnownBytes": 0,
+  "unknownSizeCount": 0,
+  "tiers": [
+    {
+      "tier": "easy",
+      "totalKnownBytes": 0,
+      "items": [
+        {
+          "name": "Display name",
+          "path": "/absolute/verified/path",
+          "sizeBytes": 0,
+          "reason": "Why this item belongs in this tier",
+          "action": "permanent"
+        }
+      ]
+    },
+    { "tier": "optional", "totalKnownBytes": 0, "items": [] },
+    { "tier": "keep", "totalKnownBytes": 0, "items": [] }
+  ]
+}
+\`\`\`
+
+For unrelated conversational questions, answer normally without this block.`
 
 export type BytemapAgentProviderState = {
   selectedModelId: string | null
@@ -101,12 +142,8 @@ contextJson:
 ${JSON.stringify(request.context, null, 2)}`
 }
 
-export function buildBytemapAgentPrompt(
-  request: BytemapAgentRequest,
-  stateBlock: string,
-  isFirstTurn: boolean
-): string {
-  return `${isFirstTurn ? `${BYTEMAP_AGENT_SYSTEM_PROMPT}\n\n` : ''}${stateBlock}
+export function buildBytemapAgentPrompt(request: BytemapAgentRequest, stateBlock: string): string {
+  return `${stateBlock}
 
 User message:
 ${request.message}`

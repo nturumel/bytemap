@@ -7,6 +7,7 @@ import type {
   OmpProviderSummary,
   PrivilegedHelperState
 } from '@shared/types'
+import { mapOmpToolExecutionEvent } from '../shared/agentToolDisplay'
 import { ensureBytemapAgentSkills } from './bytemapAgentSkills'
 import {
   BYTEMAP_AGENT_SYSTEM_PROMPT,
@@ -73,7 +74,7 @@ export class BytemapAgentRuntime {
       helperState: await this.deps.helperStatus(),
       fullDiskAccess: await this.deps.refreshFullDiskAccess()
     })
-    const prompt = buildBytemapAgentPrompt(request, stateBlock, entry.promptCount === 0)
+    const prompt = buildBytemapAgentPrompt(request, stateBlock)
 
     this.emit({ requestId: request.requestId, sessionId, type: 'status', text: 'Agent running…' })
 
@@ -118,33 +119,28 @@ export class BytemapAgentRuntime {
         captureAssistant(
           [...messages].reverse().find((message) => asRecord(message)?.role === 'assistant')
         )
-      } else if (eventType === 'tool_execution_start') {
+      } else if (
+        eventType === 'tool_execution_start' ||
+        eventType === 'tool_execution_update' ||
+        eventType === 'tool_execution_end'
+      ) {
+        const mapped = mapOmpToolExecutionEvent(eventType, event)
+        if (!mapped) return
+        const type =
+          eventType === 'tool_execution_start'
+            ? 'tool_start'
+            : eventType === 'tool_execution_update'
+              ? 'tool_update'
+              : 'tool_end'
         this.emit({
           requestId: request.requestId,
           sessionId,
-          type: 'tool_start',
-          toolName: typeof event.toolName === 'string' ? event.toolName : 'tool',
-          text:
-            typeof event.intent === 'string' ? sanitizeToolOutputExcerpt(event.intent) : undefined
-        })
-      } else if (eventType === 'tool_execution_update') {
-        const excerpt = toolEventOutputExcerpt(event)
-        this.emit({
-          requestId: request.requestId,
-          sessionId,
-          type: 'tool_update',
-          toolName: typeof event.toolName === 'string' ? event.toolName : 'tool',
-          text: excerpt ?? undefined
-        })
-      } else if (eventType === 'tool_execution_end') {
-        const excerpt = toolEventOutputExcerpt(event)
-        this.emit({
-          requestId: request.requestId,
-          sessionId,
-          type: 'tool_end',
-          toolName: typeof event.toolName === 'string' ? event.toolName : 'tool',
-          text: excerpt ?? undefined,
-          ok: event.ok !== false
+          type,
+          toolName: mapped.toolName,
+          toolCallId: mapped.toolCallId,
+          argsText: mapped.argsText,
+          text: mapped.text,
+          ok: mapped.ok
         })
       } else if (eventType === 'notice' && typeof event.message === 'string') {
         this.emit({ requestId: request.requestId, sessionId, type: 'status', text: event.message })
@@ -175,14 +171,22 @@ export class BytemapAgentRuntime {
   }
 
   async cancel(requestId: string, sessionId: string): Promise<{ ok: boolean; reason?: string }> {
-    const entry = this.sessions.get(sessionId)
+    let entry = this.sessions.get(sessionId)
+    if (!entry || entry.activeRequestId !== requestId) {
+      entry = [...this.sessions.values()].find((candidate) => candidate.activeRequestId === requestId)
+    }
     if (!entry || entry.activeRequestId !== requestId)
       return { ok: false, reason: 'request not active' }
     if (typeof entry.session.abort !== 'function') return { ok: false, reason: 'abort unavailable' }
-    await entry.session.abort({
-      reason: 'Bytemap user stopped the agent',
-      goalReason: 'interrupted'
-    })
+    try {
+      await entry.session.abort({
+        reason: 'Bytemap user stopped the agent',
+        goalReason: 'interrupted'
+      })
+    } catch {
+      // Already idle / torn down — treat as successful stop.
+    }
+    entry.activeRequestId = null
     return { ok: true }
   }
 
@@ -257,47 +261,6 @@ function applyEmbeddedOmpEnvironment(
     const pathParts = (process.env.PATH || '').split(':')
     if (!pathParts.includes(helperDir)) process.env.PATH = `${helperDir}:${process.env.PATH || ''}`
   }
-}
-
-function toolEventOutputExcerpt(event: Record<string, unknown>): string | null {
-  const text = extractText(event.partialResult ?? event.result ?? event.details)
-  if (!text.trim()) return null
-  return cappedRedactedExcerpt(sanitizeToolOutputExcerpt(text), 600)
-}
-
-function sanitizeToolOutputExcerpt(value: string): string {
-  const sanitized = value
-    .split(/\r?\n/)
-    .filter(
-      (line) =>
-        !line.startsWith(
-          '** WARNING: connection is not using a post-quantum key exchange algorithm.'
-        )
-    )
-    .filter((line) => !line.startsWith('** This session may be vulnerable'))
-    .filter((line) => !line.startsWith('** The server may need to be upgraded.'))
-    .filter((line) => !line.startsWith('Warning: Permanently added '))
-    .filter((line) => line !== '\\S')
-    .filter((line) => line !== 'Kernel \\r on an \\m')
-    .join('\n')
-  return sanitized.trim() ? sanitized : value
-}
-
-function cappedRedactedExcerpt(value: string, maxLength: number): string {
-  const redacted = value
-    .replace(/(OPENAI_API_KEY=)[^\s"']+/giu, '$1[REDACTED]')
-    .replace(/(OPENAI_CODEX_OAUTH_TOKEN=)[^\s"']+/giu, '$1[REDACTED]')
-    .replace(/(ANTHROPIC_API_KEY=)[^\s"']+/giu, '$1[REDACTED]')
-    .replace(/(ANTHROPIC_OAUTH_TOKEN=)[^\s"']+/giu, '$1[REDACTED]')
-    .replace(/(GEMINI_API_KEY=)[^\s"']+/giu, '$1[REDACTED]')
-    .replace(/(CURSOR_ACCESS_TOKEN=)[^\s"']+/giu, '$1[REDACTED]')
-    .replace(/(COPILOT_GITHUB_TOKEN=)[^\s"']+/giu, '$1[REDACTED]')
-    .replace(/(Authorization:\s*Bearer\s+)[^\s"']+/giu, '$1[REDACTED]')
-    .replace(
-      /((?:password|passwd|token|secret|private[_-]?key|ssh[_-]?identity)\s*[:=]\s*)[^\s"']+/giu,
-      '$1[REDACTED]'
-    )
-  return redacted.length > maxLength ? `${redacted.slice(0, maxLength)}…` : redacted
 }
 
 function extractText(value: unknown): string {
