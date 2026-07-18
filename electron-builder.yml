@@ -10,20 +10,14 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!build-assets'
-  # native/ ships only the compiled addon + its JS glue — the Rust source and Cargo build
-  # artifacts aren't needed at runtime and target/ alone can be gigabytes.
-  - '!native/src'
-  - '!native/target'
-  - '!native/Cargo.toml'
-  - '!native/Cargo.lock'
-  - '!native/build.rs'
+  # Rust source/build state is excluded; the release sidecar is copied into Contents/MacOS.
+  - '!native/**'
   - '!helper/**'
 asarUnpack:
   - resources/**
-  # Native addons can't be dlopen'd from inside an asar archive — must be real files on
-  # disk. Electron transparently redirects reads for asar-relative paths that were
-  # unpacked, so src/main/native.ts's `require('../../native')` still resolves correctly.
-  - native/**
+  - proto/**
+  - out/agent-backend/**
+  - node_modules/@oh-my-pi/pi-natives-darwin-arm64/**
 win:
   executableName: Bytemap
 nsis:
@@ -43,6 +37,10 @@ mac:
       to: MacOS/BytemapHelper
     - from: helper/.build/release/BytemapHelperCtl
       to: MacOS/BytemapHelperCtl
+    - from: resources/bin/bun
+      to: MacOS/bun
+    - from: native/target/release/bytemap-scanner
+      to: MacOS/bytemap-scanner
     - from: helper/Resources/com.niharturumella.bytemap.helper.plist
       to: Library/LaunchDaemons/com.niharturumella.bytemap.helper.plist
 dmg:

@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package bytemap.scanner.v1;
+
+service ScannerBackend {
+  rpc Health(Empty) returns (HealthResponse);
+  rpc DirSize(PathRequest) returns (SizeResponse);
+  rpc DirSizes(PathsRequest) returns (DirSizesResponse);
+  rpc FindLargeFiles(FindLargeFilesRequest) returns (stream LargeFileEvent);
+  rpc FindDuplicates(FindDuplicatesRequest) returns (stream DuplicateEvent);
+  rpc DirBreakdown(DirBreakdownRequest) returns (stream BreakdownEvent);
+  rpc Cancel(OperationRequest) returns (CancelResponse);
+  rpc Shutdown(Empty) returns (Empty);
+}
+
+message Empty {}
+
+message HealthResponse {
+  bool ok = 1;
+  string version = 2;
+}
+
+message PathRequest {
+  string path = 1;
+}
+
+message PathsRequest {
+  repeated string paths = 1;
+}
+
+message SizeResponse {
+  uint64 size = 1;
+}
+
+message PathSize {
+  string path = 1;
+  uint64 size = 2;
+}
+
+message DirSizesResponse {
+  repeated PathSize entries = 1;
+}
+
+message Progress {
+  string message = 1;
+}
+
+message Complete {}
+
+message FindLargeFilesRequest {
+  string request_id = 1;
+  repeated string roots = 2;
+  uint64 threshold = 3;
+}
+
+message FileEntry {
+  string path = 1;
+  uint64 size = 2;
+  int64 mtime_ms = 3;
+}
+
+message LargeFileEvent {
+  oneof event {
+    Progress progress = 1;
+    FileEntry file = 2;
+    Complete complete = 3;
+  }
+}
+
+message FindDuplicatesRequest {
+  string request_id = 1;
+  repeated string roots = 2;
+  uint64 min_size = 3;
+  string cache_db_path = 4;
+}
+
+message DuplicateGroup {
+  uint64 size = 1;
+  string keeper = 2;
+  repeated string duplicates = 3;
+}
+
+message DuplicateEvent {
+  oneof event {
+    Progress progress = 1;
+    DuplicateGroup group = 2;
+    Complete complete = 3;
+  }
+}
+
+message DirBreakdownRequest {
+  string request_id = 1;
+  string path = 2;
+  uint32 max_depth = 3;
+}
+
+message DirNode {
+  string name = 1;
+  string path = 2;
+  uint64 size = 3;
+  bool is_dir = 4;
+  repeated DirNode children = 5;
+  bool children_expanded = 6;
+}
+
+message BreakdownEvent {
+  oneof event {
+    Progress progress = 1;
+    DirNode node = 2;
+    Complete complete = 3;
+  }
+}
+
+message OperationRequest {
+  string request_id = 1;
+}
+
+message CancelResponse {
+  bool ok = 1;
+  string reason = 2;
+}

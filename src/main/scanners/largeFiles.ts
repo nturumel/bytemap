@@ -9,7 +9,7 @@ import {
   isOpaqueBundle,
   discoverLocalVolumes
 } from './utils'
-import { findLargeFiles } from '../native'
+import { findLargeFiles } from '../scanner'
 
 const THRESHOLD = 500 * 1024 * 1024
 

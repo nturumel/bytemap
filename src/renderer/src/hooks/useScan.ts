@@ -65,10 +65,12 @@ export function useScan(): UseScanState {
       setMessages((prev) => ({ ...prev, [category]: message }))
     )
     const offItem = window.api.scan.onItem((item) => {
-      itemsRef.current = [...itemsRef.current, item]
-      setItems(itemsRef.current)
+      itemsRef.current.push(item)
     })
     const offCategoryDone = window.api.scan.onCategoryDone(({ category }) => {
+      // Publish one snapshot per completed category instead of copying the full result
+      // array for every item. Duplicate scans can surface tens of thousands of entries.
+      setItems([...itemsRef.current])
       setCategoriesDone((prev) => new Set(prev).add(category))
     })
     window.api.helper.status().then(setHelperState).catch(() => {
@@ -117,7 +119,10 @@ export function useScan(): UseScanState {
     setHelperError(null)
     setPhase('scanning')
     window.api.helper.status().then(setHelperState).catch(() => undefined)
-    window.api.scan.start().then(() => setPhase('results'))
+    window.api.scan.start().then(() => {
+      setItems([...itemsRef.current])
+      setPhase('results')
+    })
   }, [])
 
   const toggleItem = useCallback((id: string) => {

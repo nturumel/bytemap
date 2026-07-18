@@ -231,6 +231,7 @@ export function Treemap({
 }
 
 /** Paths of actionable reclaim targets in the current view, ordered for `N` cycling. */
+// eslint-disable-next-line react-refresh/only-export-components
 export function suggestedTargetPaths(nodes: DiskNode[]): string[] {
   return nodes
     .map((n) => ({ node: n, target: classifyPath(n.path, n.name) }))

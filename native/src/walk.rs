@@ -10,47 +10,47 @@ use std::os::unix::fs::MetadataExt;
 /// length so APFS sparse files / cloud placeholders / some Container clones aren't
 /// inflated. Hard-linked clones are de-duplicated via (dev, ino) in `sum_dir`.
 fn file_disk_bytes(metadata: &fs::Metadata) -> u64 {
-  #[cfg(unix)]
-  {
-    let allocated = metadata.blocks().saturating_mul(512);
-    if allocated > 0 {
-      return allocated;
+    #[cfg(unix)]
+    {
+        let allocated = metadata.blocks().saturating_mul(512);
+        if allocated > 0 {
+            return allocated;
+        }
     }
-  }
-  metadata.len()
+    metadata.len()
 }
 
 /// Mirrors the TypeScript scanners' exclude list — directories that are either
 /// regenerable, root/system-owned, or risky to walk into file-by-file.
 const EXCLUDED_DIR_NAMES: &[&str] = &[
-  "node_modules",
-  ".git",
-  "Library",
-  ".Trash",
-  ".npm",
-  ".cache",
-  "__pycache__",
-  ".venv",
-  "venv",
-  "env",
-  ".tox",
-  "site-packages",
-  "dist",
-  "build",
-  ".next",
-  ".pytest_cache",
-  ".mypy_cache",
-  "target",
-  "DerivedData",
-  "com.docker.docker",
-  "Caches",
-  "Extensions",
-  "Frameworks",
-  "PreferencePanes",
-  // Xcode/CLT ships multiple full versioned SDK copies here (MacOSX14.5.sdk,
-  // MacOSX15.2.sdk, ...) — cross-version "duplicates" are intentional and toolchain-
-  // managed, same reasoning as node_modules/go's module cache.
-  "CommandLineTools",
+    "node_modules",
+    ".git",
+    "Library",
+    ".Trash",
+    ".npm",
+    ".cache",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "env",
+    ".tox",
+    "site-packages",
+    "dist",
+    "build",
+    ".next",
+    ".pytest_cache",
+    ".mypy_cache",
+    "target",
+    "DerivedData",
+    "com.docker.docker",
+    "Caches",
+    "Extensions",
+    "Frameworks",
+    "PreferencePanes",
+    // Xcode/CLT ships multiple full versioned SDK copies here (MacOSX14.5.sdk,
+    // MacOSX15.2.sdk, ...) — cross-version "duplicates" are intentional and toolchain-
+    // managed, same reasoning as node_modules/go's module cache.
+    "CommandLineTools",
 ];
 
 /// App-managed library bundles (Photos, iMovie, GarageBand, .app bundles, disk images).
@@ -58,185 +58,232 @@ const EXCLUDED_DIR_NAMES: &[&str] = &[
 /// maintains a database/index over — walking into one and touching files individually
 /// can corrupt the library. Reported as one opaque item elsewhere, never walked here.
 const OPAQUE_BUNDLE_SUFFIXES: &[&str] = &[
-  ".photoslibrary",
-  ".sparsebundle",
-  ".imovielibrary",
-  ".tvlibrary",
-  ".fcpbundle",
-  ".band",
-  ".app",
+    ".photoslibrary",
+    ".sparsebundle",
+    ".imovielibrary",
+    ".tvlibrary",
+    ".fcpbundle",
+    ".band",
+    ".app",
 ];
 
 pub fn is_opaque_bundle(name: &str) -> bool {
-  OPAQUE_BUNDLE_SUFFIXES.iter().any(|suffix| name.ends_with(suffix))
+    OPAQUE_BUNDLE_SUFFIXES
+        .iter()
+        .any(|suffix| name.ends_with(suffix))
 }
 
 fn is_excluded(name: &str) -> bool {
-  (name.starts_with('.') && name != ".") || EXCLUDED_DIR_NAMES.contains(&name)
+    (name.starts_with('.') && name != ".") || EXCLUDED_DIR_NAMES.contains(&name)
 }
 
 #[derive(Clone)]
 pub struct WalkedFile {
-  pub path: PathBuf,
-  pub size: u64,
-  pub mtime_ms: i64,
+    pub path: PathBuf,
+    pub size: u64,
+    pub mtime_ms: i64,
 }
 
 pub struct WalkOptions {
-  pub max_entries: usize,
-  pub max_depth: usize,
+    pub max_entries: usize,
+    pub max_depth: usize,
 }
 
 impl Default for WalkOptions {
-  fn default() -> Self {
-    Self { max_entries: 200_000, max_depth: 12 }
-  }
+    fn default() -> Self {
+        Self {
+            max_entries: 200_000,
+            max_depth: 12,
+        }
+    }
 }
 
 /// Recursively walks `root`, calling `on_file` for every file found, skipping excluded
 /// dirs, opaque bundles, hidden dot-directories, and symlinks. Stops after `max_entries`
 /// files to bound worst-case scan time on huge trees.
-pub fn walk<F: FnMut(WalkedFile)>(root: &Path, opts: &WalkOptions, mut on_file: F) {
-  let mut count = 0usize;
-  walk_dir(root, 0, opts, &mut count, &mut on_file);
+
+/// Returns false when traversal was interrupted by `cancelled`.
+pub fn walk_cancellable<F, C>(root: &Path, opts: &WalkOptions, cancelled: C, mut on_file: F) -> bool
+where
+    F: FnMut(WalkedFile),
+    C: Fn() -> bool,
+{
+    let mut count = 0usize;
+    walk_dir(root, 0, opts, &mut count, &cancelled, &mut on_file)
 }
 
-fn walk_dir<F: FnMut(WalkedFile)>(
-  dir: &Path,
-  depth: usize,
-  opts: &WalkOptions,
-  count: &mut usize,
-  on_file: &mut F,
-) {
-  if depth > opts.max_depth || *count >= opts.max_entries {
-    return;
-  }
-
-  let entries = match fs::read_dir(dir) {
-    Ok(e) => e,
-    Err(_) => return, // permission denied / gone — skip, don't crash the scan
-  };
-
-  let mut subdirs: Vec<PathBuf> = Vec::new();
-
-  for entry in entries.flatten() {
-    if *count >= opts.max_entries {
-      return;
-    }
-    let name = entry.file_name();
-    let name_str = name.to_string_lossy();
-    if is_excluded(&name_str) {
-      continue;
+fn walk_dir<F: FnMut(WalkedFile), C: Fn() -> bool>(
+    dir: &Path,
+    depth: usize,
+    opts: &WalkOptions,
+    count: &mut usize,
+    cancelled: &C,
+    on_file: &mut F,
+) -> bool {
+    if cancelled() || depth > opts.max_depth || *count >= opts.max_entries {
+        return !cancelled();
     }
 
-    let file_type = match entry.file_type() {
-      Ok(ft) => ft,
-      Err(_) => continue,
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return true, // permission denied / gone — skip, don't crash the scan
     };
-    if file_type.is_symlink() {
-      continue;
+
+    let mut subdirs: Vec<PathBuf> = Vec::new();
+
+    for entry in entries.flatten() {
+        if cancelled() {
+            return false;
+        }
+        if *count >= opts.max_entries {
+            return true;
+        }
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if is_excluded(&name_str) {
+            continue;
+        }
+
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
+
+        if file_type.is_dir() {
+            if is_opaque_bundle(&name_str) {
+                continue;
+            }
+            subdirs.push(entry.path());
+        } else if file_type.is_file() {
+            if let Ok(metadata) = entry.metadata() {
+                let mtime_ms = metadata
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as i64)
+                    .unwrap_or(0);
+                *count += 1;
+                on_file(WalkedFile {
+                    path: entry.path(),
+                    size: file_disk_bytes(&metadata),
+                    mtime_ms,
+                });
+            }
+        }
     }
 
-    if file_type.is_dir() {
-      if is_opaque_bundle(&name_str) {
-        continue;
-      }
-      subdirs.push(entry.path());
-    } else if file_type.is_file() {
-      if let Ok(metadata) = entry.metadata() {
-        let mtime_ms = metadata
-          .modified()
-          .ok()
-          .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-          .map(|d| d.as_millis() as i64)
-          .unwrap_or(0);
-        *count += 1;
-        on_file(WalkedFile {
-          path: entry.path(),
-          size: file_disk_bytes(&metadata),
-          mtime_ms,
-        });
-      }
+    for dir in subdirs {
+        if cancelled() {
+            return false;
+        }
+        if *count >= opts.max_entries {
+            return true;
+        }
+        if !walk_dir(&dir, depth + 1, opts, count, cancelled, on_file) {
+            return false;
+        }
     }
-  }
-
-  for dir in subdirs {
-    if *count >= opts.max_entries {
-      return;
-    }
-    walk_dir(&dir, depth + 1, opts, count, on_file);
-  }
+    true
 }
 
 pub struct ChildEntry {
-  pub name: String,
-  pub path: PathBuf,
-  /// A directory that shouldn't be recursed into further (see is_opaque_bundle) — still
-  /// sized as a whole, just not broken down into its own internals.
-  pub is_opaque: bool,
+    pub name: String,
+    pub path: PathBuf,
+    /// A directory that shouldn't be recursed into further (see is_opaque_bundle) — still
+    /// sized as a whole, just not broken down into its own internals.
+    pub is_opaque: bool,
 }
 
 /// Immediate children of `dir` — no exclusions applied beyond symlinks (unlike `walk`,
 /// which skips node_modules/.git/etc. for cleanup purposes). The disk-usage visualizer
 /// wants to show everything, including the things the cleanup scanners hide on purpose.
 pub fn list_children(dir: &Path) -> Vec<ChildEntry> {
-  let mut result = Vec::new();
-  let entries = match fs::read_dir(dir) {
-    Ok(e) => e,
-    Err(_) => return result,
-  };
-  for entry in entries.flatten() {
-    let file_type = match entry.file_type() {
-      Ok(ft) => ft,
-      Err(_) => continue,
+    let mut result = Vec::new();
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return result,
     };
-    if file_type.is_symlink() {
-      continue;
+    for entry in entries.flatten() {
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if file_type.is_dir() {
+            let is_opaque = is_opaque_bundle(&name);
+            result.push(ChildEntry {
+                name,
+                path: entry.path(),
+                is_opaque,
+            });
+        } else if file_type.is_file() {
+            result.push(ChildEntry {
+                name,
+                path: entry.path(),
+                is_opaque: false,
+            });
+        }
     }
-    let name = entry.file_name().to_string_lossy().to_string();
-    if file_type.is_dir() {
-      let is_opaque = is_opaque_bundle(&name);
-      result.push(ChildEntry { name, path: entry.path(), is_opaque });
-    } else if file_type.is_file() {
-      result.push(ChildEntry { name, path: entry.path(), is_opaque: false });
-    }
-  }
-  result
+    result
 }
 
 /// Recursive size sum with no exclusions (aligned with `du -sk`: allocated blocks, hard
 /// links counted once). Used for sizing a target (bundle, cache, opaque library) as a whole.
 pub fn dir_size(path: &Path) -> u64 {
-  let mut total = 0u64;
-  let mut seen: HashSet<(u64, u64)> = HashSet::new();
-  sum_dir(path, &mut total, &mut seen);
-  total
+    dir_size_cancellable(path, || false).unwrap_or(0)
 }
 
-fn sum_dir(dir: &Path, total: &mut u64, seen: &mut HashSet<(u64, u64)>) {
-  let entries = match fs::read_dir(dir) {
-    Ok(e) => e,
-    Err(_) => return,
-  };
-  for entry in entries.flatten() {
-    let file_type = match entry.file_type() {
-      Ok(ft) => ft,
-      Err(_) => continue,
+/// Recursively sums a path and returns `None` when interrupted.
+pub fn dir_size_cancellable<C: Fn() -> bool>(path: &Path, cancelled: C) -> Option<u64> {
+    let mut total = 0u64;
+    let mut seen: HashSet<(u64, u64)> = HashSet::new();
+    sum_dir(path, &mut total, &mut seen, &cancelled).then_some(total)
+}
+
+fn sum_dir<C: Fn() -> bool>(
+    dir: &Path,
+    total: &mut u64,
+    seen: &mut HashSet<(u64, u64)>,
+    cancelled: &C,
+) -> bool {
+    if cancelled() {
+        return false;
+    }
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return true,
     };
-    if file_type.is_symlink() {
-      continue;
-    }
-    if file_type.is_dir() {
-      sum_dir(&entry.path(), total, seen);
-    } else if let Ok(metadata) = entry.metadata() {
-      #[cfg(unix)]
-      {
-        let key = (metadata.dev(), metadata.ino());
-        if !seen.insert(key) {
-          continue;
+    for entry in entries.flatten() {
+        if cancelled() {
+            return false;
         }
-      }
-      *total += file_disk_bytes(&metadata);
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
+        if file_type.is_dir() {
+            if !sum_dir(&entry.path(), total, seen, cancelled) {
+                return false;
+            }
+        } else if let Ok(metadata) = entry.metadata() {
+            #[cfg(unix)]
+            {
+                let key = (metadata.dev(), metadata.ino());
+                if !seen.insert(key) {
+                    continue;
+                }
+            }
+            *total += file_disk_bytes(&metadata);
+        }
     }
-  }
+    true
 }

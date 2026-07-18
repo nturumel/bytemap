@@ -1,21 +1,27 @@
 [package]
-name = "scanner-native"
+name = "bytemap-scanner"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-crate-type = ["cdylib"]
+[[bin]]
+name = "bytemap-scanner"
+path = "src/main.rs"
 
 [dependencies]
 blake3 = "1.8.5"
-napi = { version = "3.4.0", features = ["napi9", "async"] }
-napi-derive = "3.3.0"
+futures-util = "0.3"
+prost = "0.14"
 rayon = "1.12.0"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net", "sync"] }
+tokio-util = "0.7"
+tonic = "0.14"
+tonic-prost = "0.14"
 
 [build-dependencies]
-napi-build = "2"
-
+protoc-bin-vendored = "3"
+tonic-prost-build = "0.14"
 [profile.release]
 lto = true
 strip = "symbols"

@@ -10,6 +10,8 @@ import { SpinnerIcon } from './icons'
 import { classifyPath } from '@shared/cleanupTargets'
 import type { DiskNode, PrivilegedHelperState, ScanItem } from '@shared/types'
 import { HELPER_REQUIRED } from '@shared/types'
+import { AgentChatWidget } from './AgentChatWidget'
+import { buildDiskMapAgentContext } from '../lib/agentContext'
 
 const LEGEND: { label: string; varName: string }[] = [
   { label: 'Folder', varName: '--viz-dir' },
@@ -53,6 +55,23 @@ export function DiskUsageScreen({ onBack }: { onBack: () => void }): React.JSX.E
     () => children.filter((n) => !ignored.has(n.path)),
     [children, ignored]
   )
+  const agentContext = useMemo(
+    () =>
+      buildDiskMapAgentContext({
+        breadcrumbs,
+        children: visibleChildren,
+        selectedNode,
+        volumeStats,
+        loading,
+        refreshing
+      }),
+    [breadcrumbs, visibleChildren, selectedNode, volumeStats, loading, refreshing]
+  )
+
+  const agentSeedPrompt = selectedNode
+    ? `Ask agent about this tile: ${selectedNode.path}`
+    : 'Ask agent to inspect this disk map view'
+
 
   const suggestions = useMemo(
     () => suggestedTargetPaths(visibleChildren).filter((p) => !ignored.has(p)),
@@ -304,6 +323,8 @@ export function DiskUsageScreen({ onBack }: { onBack: () => void }): React.JSX.E
           }}
         />
       )}
+      <AgentChatWidget context={agentContext} seedPrompt={agentSeedPrompt} buttonLabel="Ask agent about this tile" />
+
     </div>
   )
 }

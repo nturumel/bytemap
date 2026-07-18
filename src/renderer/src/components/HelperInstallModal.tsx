@@ -17,8 +17,13 @@ export function HelperInstallModal({
   const onSkipRef = useRef(onSkip)
   const installingRef = useRef(installing)
   const skipButtonRef = useRef<HTMLButtonElement>(null)
-  onSkipRef.current = onSkip
-  installingRef.current = installing
+  useEffect(() => {
+    onSkipRef.current = onSkip
+  }, [onSkip])
+
+  useEffect(() => {
+    installingRef.current = installing
+  }, [installing])
 
   useEffect(() => {
     skipButtonRef.current?.focus()

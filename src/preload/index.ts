@@ -1,10 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
+  BytemapAgentEvent,
+  BytemapAgentRequest,
+  BytemapAgentResponse,
   DeleteRequest,
   DeleteResult,
   DiskChangeEvent,
   DiskNode,
+  OmpProviderSnapshot,
   PrivilegedHelperState,
   ScanCategoryId,
   ScanDoneEvent,
@@ -40,6 +44,30 @@ const api = {
   helper: {
     status: (): Promise<PrivilegedHelperState> => ipcRenderer.invoke('helper:status'),
     register: (): Promise<PrivilegedHelperState> => ipcRenderer.invoke('helper:register')
+  },
+  agent: {
+    ask: (request: BytemapAgentRequest): Promise<BytemapAgentResponse> =>
+      ipcRenderer.invoke('agent:ask', request),
+    reset: (sessionId: string): Promise<void> => ipcRenderer.invoke('agent:reset', sessionId),
+    cancel: (
+      requestId: string,
+      sessionId: string
+    ): Promise<{ ok: boolean; reason?: string }> =>
+      ipcRenderer.invoke('agent:cancel', requestId, sessionId),
+    providers: (): Promise<OmpProviderSnapshot> => ipcRenderer.invoke('agent:providers'),
+    loginProvider: (providerId: string): Promise<OmpProviderSnapshot> =>
+      ipcRenderer.invoke('agent:loginProvider', providerId),
+    setProviderApiKey: (providerId: string, apiKey: string): Promise<OmpProviderSnapshot> =>
+      ipcRenderer.invoke('agent:setProviderApiKey', providerId, apiKey),
+    logoutProvider: (providerId: string): Promise<OmpProviderSnapshot> =>
+      ipcRenderer.invoke('agent:logoutProvider', providerId),
+    selectModel: (modelId: string): Promise<void> =>
+      ipcRenderer.invoke('agent:selectModel', modelId),
+    onEvent: (cb: (event: BytemapAgentEvent) => void): (() => void) => {
+      const listener = (_: unknown, event: BytemapAgentEvent): void => cb(event)
+      ipcRenderer.on('agent:event', listener)
+      return () => ipcRenderer.removeListener('agent:event', listener)
+    }
   },
   system: {
     checkFullDiskAccess: (): Promise<boolean> => ipcRenderer.invoke('system:fullDiskAccess'),

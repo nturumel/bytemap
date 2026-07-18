@@ -10,14 +10,6 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
-    build: {
-      rollupOptions: {
-        // The native addon ships its own platform-specific .node binary and internal
-        // dynamic requires — it can't be statically bundled, and shouldn't be. Left as an
-        // external require so Node resolves it at runtime the same way in dev and prod.
-        external: ['../../native']
-      }
-    }
   },
   preload: {
     resolve: {

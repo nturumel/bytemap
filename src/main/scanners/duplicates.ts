@@ -3,7 +3,7 @@ import { homedir } from 'os'
 import { join, basename } from 'path'
 import type { ScanItem } from '@shared/types'
 import { pathExists, mapLimit } from './utils'
-import { findDuplicates } from '../native'
+import { findDuplicates } from '../scanner'
 
 const MIN_SIZE = 4 * 1024 // ignore trivial files
 
